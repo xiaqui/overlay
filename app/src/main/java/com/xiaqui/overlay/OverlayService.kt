@@ -177,7 +177,9 @@ class OverlayService : Service() {
         publishRuntime()
     }
     private fun publishRuntime() {
-        runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList())
+        runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList(),cornerWindows.map {
+            val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
+        })
     }
     private fun updateForeground() {
         if(!settings.hasRules() || !usageAllowed(this)) { foreground=null;return }
@@ -234,7 +236,7 @@ class OverlayService : Service() {
         clearWindows();stopForeground(true);super.onDestroy()
     }
     override fun onBind(intent: Intent?) : IBinder?=null
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>)
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {

@@ -119,14 +119,18 @@ class Issue4Test {
         val reverse=OverlayService.runtime!!.bars
         val inside=inst.uiAutomation.takeScreenshot()!!
         assertEquals("left lower corner inside left nav",0,inside.getPixel(reverse.left,inside.height-1-reverse.bottom) and 0xFFFFFF)
-        assertEquals("upper left stays at physical edge",0,inside.getPixel(0,reverse.top+1) and 0xFFFFFF)
+        // The left nav bar may cover an upper corner. Inspect the real View position there.
+        assertEquals("upper left stays at physical edge",CornerOffset(0,reverse.top),OverlayService.runtime!!.locations[0])
         inside.recycle()
         main { settings.setRule(ctx.packageName,Policy.NORMAL) }
         waitFor("normal mode in reverse landscape") { OverlayService.runtime?.offsets?.all { it==CornerOffset() }==true }
         android.os.SystemClock.sleep(700)
         val normal=inst.uiAutomation.takeScreenshot()!!
-        for((x,y) in listOf(0 to 0,(normal.width-1) to 0,0 to (normal.height-1),(normal.width-1) to (normal.height-1)))
-            assertEquals("normal physical corner in reverse landscape $x,$y",0,normal.getPixel(x,y) and 0xFFFFFF)
+        // System bars can be above legacy 2006 windows: require physical coordinates, not bar coverage.
+        val radius=(settings.number("radius",18)*ctx.resources.displayMetrics.density).toInt()
+        assertEquals("normal physical corner positions in reverse landscape",
+            listOf(CornerOffset(0,0),CornerOffset(normal.width-radius,0),CornerOffset(0,normal.height-radius),CornerOffset(normal.width-radius,normal.height-radius)),
+            OverlayService.runtime!!.locations)
         normal.recycle()
         main { settings.setDisplayRule(ctx.packageName,1) }
         waitFor("force display exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.visible }==true }
