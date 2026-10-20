@@ -39,3 +39,9 @@ Android 9/10端末がない場合はエミュレータを利用し、実機合�
 - アプリ別角丸の検出方法/権限、およびシステムバー領域の描画範囲。
 - 許容する通知表示・常駐メモリの実測値。
 
+
+## 実装時の決定（2026-10-21）
+- min23 / target25 / compile35。2006を優先、API26以降は拒否時2038。根拠はM0_APK_RESEARCH_JA.md。
+- M3は手動位置・サイズ・色と白/黒全画面確認を採用。自動解析は保留。
+- アプリ別判定はUsageStats。AccessibilityServiceは使わない。
+- APKは非debuggable release、署名照合と再取得検証後GitHub prerelease公開。Artifactなし。
