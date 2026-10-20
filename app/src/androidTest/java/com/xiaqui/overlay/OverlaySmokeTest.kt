@@ -37,10 +37,8 @@ class OverlaySmokeTest {
             }
             waitFor { settings.prefs.getString("diagnostic","")?.startsWith("旧方式 2006")==true }
             for(dark in listOf(false,true)) {
-                val monitor=instrumentation.addMonitor(PreviewActivity::class.java.name,null,false)
-                context.startActivity(Intent(context,PreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("dark",dark))
-                val preview=instrumentation.waitForMonitorWithTimeout(monitor,10_000)
-                instrumentation.removeMonitor(monitor)
+                val preview=instrumentation.startActivitySync(Intent(context,PreviewActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("dark",dark))
                 assertNotNull("Preview reached foreground",preview)
                 instrumentation.waitForIdleSync()
                 android.os.SystemClock.sleep(1000)

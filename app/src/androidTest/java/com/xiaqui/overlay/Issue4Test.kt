@@ -42,10 +42,9 @@ class Issue4Test {
         main { settings.prefs.edit().clear().commit() }
     }
     private fun launch(mode: String) {
-        val monitor=inst.addMonitor(PreviewActivity::class.java.name,null,false)
-        ctx.startActivity(Intent(ctx,PreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("bars",mode))
-        preview=inst.waitForMonitorWithTimeout(monitor,10_000) as? PreviewActivity
-        inst.removeMonitor(monitor);assertNotNull(preview);inst.waitForIdleSync()
+        preview=inst.startActivitySync(Intent(ctx,PreviewActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("bars",mode)) as PreviewActivity
+        inst.waitForIdleSync()
     }
     private fun enable()=main {
         settings.set("top",true);settings.set("bottom",true);settings.set("fullscreen",true)
@@ -112,15 +111,20 @@ class Issue4Test {
         bars("immersive",true);bars("normal",false)
         assertTrue("landscape nav measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE }
-        waitFor("reverse landscape left nav measured") {
-            OverlayService.runtime?.let { it.bars.known && it.bars.top>0 && it.bars.left>0 }==true
+        waitFor("reverse landscape bars and per-app placement settled") {
+            OverlayService.runtime?.let {
+                val side=if(android.os.Build.VERSION.SDK_INT>=26)it.bars.left>0 else it.bars.left+it.bars.right>0
+                it.foreground==ctx.packageName && it.bars.known && it.bars.top>0 && side &&
+                    it.offsets==(0..3).map { c->Policy.cornerOffset(c,Policy.BOTH_INSIDE,it.bars) }
+            }==true
         }
         android.os.SystemClock.sleep(700)
         val reverse=OverlayService.runtime!!.bars
         val inside=inst.uiAutomation.takeScreenshot()!!
-        assertEquals("left lower corner inside left nav",0,inside.getPixel(reverse.left,inside.height-1-reverse.bottom) and 0xFFFFFF)
+        val navCornerX=if(reverse.left>0)reverse.left else inside.width-1-reverse.right
+        assertEquals("lower corner inside side nav: ${OverlayService.runtime}",0,inside.getPixel(navCornerX,inside.height-1-reverse.bottom) and 0xFFFFFF)
         // The left nav bar may cover an upper corner. Inspect the real View position there.
-        assertEquals("upper left stays at physical edge",CornerOffset(0,reverse.top),OverlayService.runtime!!.locations[0])
+        assertEquals("upper left stays at physical edge: ${OverlayService.runtime}",CornerOffset(0,reverse.top),OverlayService.runtime!!.locations[0])
         inside.recycle()
         main { settings.setRule(ctx.packageName,Policy.NORMAL) }
         waitFor("normal mode in reverse landscape") { OverlayService.runtime?.offsets?.all { it==CornerOffset() }==true }
