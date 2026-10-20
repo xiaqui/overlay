@@ -205,6 +205,24 @@ class OverlayService : Service() {
             val x=if(c%2==0)offsets[c].x else display.x-r-offsets[c].x
             val y=if(c<2)offsets[c].y else display.y-r-offsets[c].y
             val v=CornerView(this,c)
+            // Some policies also shift the parent origin (e.g. left-side nav in reverse landscape).
+            // Align the actual screen location after layout, not just the requested parent-relative x/y.
+            var previousLocation: Pair<Int,Int>?=null
+            v.viewTreeObserver.addOnGlobalLayoutListener {
+                if(v.isAttachedToWindow && windows.contains(v)) {
+                    val location=IntArray(2);v.getLocationOnScreen(location)
+                    val actual=location[0] to location[1]
+                    if(actual==(x to y))previousLocation=null
+                    else if(actual!=previousLocation) {
+                        previousLocation=actual // Do not loop if an OEM clamps a requested position.
+                        val p=v.layoutParams as WindowManager.LayoutParams
+                        p.x+=x-location[0];p.y+=y-location[1]
+                        try { wm.updateViewLayout(v,p) }
+                        catch (_: SecurityException) { fail("表示権限を確認してください") }
+                        catch (_: WindowManager.BadTokenException) { fail("表示ウィンドウが拒否されました") }
+                    }
+                }
+            }
             add(v,params(r,r,Gravity.TOP or Gravity.LEFT).apply { this.x=x;this.y=y });cornerWindows.add(v)
         }
         lastMask=mask;lastCornerLayout=offsets;publishRuntime()

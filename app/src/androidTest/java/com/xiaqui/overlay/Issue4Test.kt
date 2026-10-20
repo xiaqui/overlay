@@ -111,6 +111,23 @@ class Issue4Test {
         waitFor("landscape observed") { ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE && OverlayService.runtime?.bars?.known==true }
         bars("immersive",true);bars("normal",false)
         assertTrue("landscape nav measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
+        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE }
+        waitFor("reverse landscape left nav measured") {
+            OverlayService.runtime?.let { it.bars.known && it.bars.top>0 && it.bars.left>0 }==true
+        }
+        android.os.SystemClock.sleep(700)
+        val reverse=OverlayService.runtime!!.bars
+        val inside=inst.uiAutomation.takeScreenshot()!!
+        assertEquals("left lower corner inside left nav",0,inside.getPixel(reverse.left,inside.height-1-reverse.bottom) and 0xFFFFFF)
+        assertEquals("upper left stays at physical edge",0,inside.getPixel(0,reverse.top+1) and 0xFFFFFF)
+        inside.recycle()
+        main { settings.setRule(ctx.packageName,Policy.NORMAL) }
+        waitFor("normal mode in reverse landscape") { OverlayService.runtime?.offsets?.all { it==CornerOffset() }==true }
+        android.os.SystemClock.sleep(700)
+        val normal=inst.uiAutomation.takeScreenshot()!!
+        for((x,y) in listOf(0 to 0,(normal.width-1) to 0,0 to (normal.height-1),(normal.width-1) to (normal.height-1)))
+            assertEquals("normal physical corner in reverse landscape $x,$y",0,normal.getPixel(x,y) and 0xFFFFFF)
+        normal.recycle()
         main { settings.setDisplayRule(ctx.packageName,1) }
         waitFor("force display exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.visible }==true }
         main { settings.setDisplayRule(ctx.packageName,2) }
