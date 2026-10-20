@@ -60,6 +60,9 @@ jobs:
   release:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: [check, emulator]
+    concurrency:
+      group: overlay-release-${{ github.sha }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -128,8 +131,27 @@ jobs:
           Workflow: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           $(cat delivery/SHA256SUMS)
           NOTES
-          gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay 0.1.0 (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
-          gh release upload "$tag" delivery/Overlay.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt
+          if gh release view "$tag" --json isDraft,targetCommitish > "$RUNNER_TEMP/existing-release.json"; then
+            test "$(jq -r '.targetCommitish' "$RUNNER_TEMP/existing-release.json")" = "$GITHUB_SHA"
+            if [ "$(jq -r '.isDraft' "$RUNNER_TEMP/existing-release.json")" = false ]; then
+              # Published assets are immutable here: validate and reuse, never overwrite.
+              mkdir "$RUNNER_TEMP/published"
+              gh release download "$tag" --pattern '*' --dir "$RUNNER_TEMP/published"
+              cmp delivery/SOURCE_SHA.txt "$RUNNER_TEMP/published/SOURCE_SHA.txt"
+              (cd "$RUNNER_TEMP/published" && sha256sum -c SHA256SUMS)
+              "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/published/Overlay.apk" > "$RUNNER_TEMP/published-cert.txt"
+              test "$expected" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/published-cert.txt")"
+              "$tools/aapt" dump badging "$RUNNER_TEMP/published/Overlay.apk" > "$RUNNER_TEMP/published-badging.txt"
+              grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/published-badging.txt"
+              grep -q "sdkVersion:'23'" "$RUNNER_TEMP/published-badging.txt"
+              cat "$RUNNER_TEMP/published/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
+              echo "Reused verified Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay 0.1.0 (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
+          fi
+          gh release upload "$tag" delivery/Overlay.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
           mkdir "$RUNNER_TEMP/retrieved"
           gh release download "$tag" --pattern Overlay.apk --dir "$RUNNER_TEMP/retrieved"
           cmp delivery/Overlay.apk "$RUNNER_TEMP/retrieved/Overlay.apk"
