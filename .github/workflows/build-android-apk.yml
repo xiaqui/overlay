@@ -148,6 +148,13 @@ jobs:
           expected=$(sha256sum "$RUNNER_TEMP/cert.der" | cut -d ' ' -f1)
           actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' delivery/APK-VERIFICATION.txt)
           test "$expected" = "$actual"
+          # Verify update compatibility with the actual first shipped APK, not only key names.
+          mkdir "$RUNNER_TEMP/baseline"
+          gh release download overlay-0.1.0-b2ed53a8 --pattern Overlay.apk --dir "$RUNNER_TEMP/baseline"
+          echo "d53d2c9d1d9d0f0780410ace4e2353d5921d990d8908c4d630d8ec3326348ce1  $RUNNER_TEMP/baseline/Overlay.apk" | sha256sum -c -
+          "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/baseline/Overlay.apk" > "$RUNNER_TEMP/baseline-cert.txt"
+          baseline=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/baseline-cert.txt")
+          test "$actual" = "$baseline"
           printf '%s\n' "$GITHUB_SHA" > delivery/SOURCE_SHA.txt
           (cd delivery && sha256sum Overlay.apk > SHA256SUMS)
           tag="overlay-0.2.0-${GITHUB_SHA:0:8}"
