@@ -5,4 +5,3 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Overlay"
 include(":app")
-

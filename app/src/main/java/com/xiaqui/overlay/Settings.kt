@@ -3,15 +3,29 @@ package com.xiaqui.overlay
 import android.content.Context
 
 class Settings(context: Context) {
-    val prefs = context.getSharedPreferences("overlay", Context.MODE_PRIVATE)
-    fun bool(key: String, default: Boolean = false) = prefs.getBoolean(key, default)
-    fun number(key: String, default: Int) = prefs.getInt(key, default)
-    fun set(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply() }
-    fun set(key: String, value: Int) { prefs.edit().putInt(key, value).apply() }
-    fun rule(pkg: String): Int? = if (prefs.contains("app:$pkg")) number("app:$pkg", 0) else null
-    fun setRule(pkg: String, mask: Int?) {
-        prefs.edit().apply { if (mask == null) remove("app:$pkg") else putInt("app:$pkg", mask) }.apply()
+    val prefs=context.getSharedPreferences("overlay",Context.MODE_PRIVATE)
+    init {
+        if(prefs.getInt("cornerSchema",0)<2) {
+            val editor=prefs.edit()
+            for((key,value) in prefs.all)if(key.startsWith("app:") && value is Int) {
+                val migrated="corner2:"+key.removePrefix("app:")
+                if(!prefs.contains(migrated))editor.putInt(migrated,Policy.migrateLegacy(value))
+            }
+            // Keep original app:* values for downgrade; one atomic, idempotent migration.
+            editor.putInt("cornerSchema",2).commit()
+        }
     }
-    fun hasRules() = prefs.all.keys.any { it.startsWith("app:") }
-    fun defaultMask() = (if (bool("top")) 1 else 0) or (if (bool("bottom")) 2 else 0)
+    fun bool(key: String,default: Boolean=false)=prefs.getBoolean(key,default)
+    fun number(key: String,default: Int)=prefs.getInt(key,default)
+    fun set(key: String,value: Boolean) { prefs.edit().putBoolean(key,value).apply() }
+    fun set(key: String,value: Int) { prefs.edit().putInt(key,value).apply() }
+    fun rule(pkg: String)=Policy.mode(number("corner2:$pkg",Policy.NORMAL))
+    fun setRule(pkg: String,mode: Int) { prefs.edit().putInt("corner2:$pkg",Policy.mode(mode)).apply() }
+    fun displayRule(pkg: String)=number("display:$pkg",0).coerceIn(0,2)
+    fun setDisplayRule(pkg: String,value: Int) {
+        prefs.edit().apply { if(value==0)remove("display:$pkg") else putInt("display:$pkg",value.coerceIn(1,2)) }.apply()
+    }
+    fun hasRules()=prefs.all.keys.any { it.startsWith("corner2:") || it.startsWith("display:") }
+    fun needsBars()=bool("fullscreen") || prefs.all.any { (k,v)->k.startsWith("corner2:") && v is Int && v in Policy.TOP_INSIDE..Policy.BOTH_INSIDE }
+    fun defaultMask()=(if(bool("top"))1 else 0) or (if(bool("bottom"))2 else 0)
 }

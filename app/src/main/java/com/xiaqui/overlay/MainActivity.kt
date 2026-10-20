@@ -52,8 +52,8 @@ class MainActivity: Activity() {
         }
         content.addView(text(settings.prefs.getString("diagnostic","まだ開始していません") ?: ""))
         toggle("時計","clock",true);toggle("電池","battery",true)
-        toggle("全画面のときだけ（試験機能）","fullscreen")
-        content.addView(text("全画面判定は機種・透明ステータスバーで誤判定する場合があります。その場合は上の設定をOFFにして常時表示してください。"))
+        toggle("全画面のときだけ","fullscreen")
+        content.addView(text("ステータスバーが隠れたときに時計・電池を表示します。判定不能時は表示を維持します。機種差や一時的なバー表示に合わないアプリは、下の例外設定で調整できます。"))
         slider("文字サイズ","size",10,28,14)
         slider("右端からの距離","x",0,100,4)
         slider("上端からの距離","y",0,100,0)
@@ -62,10 +62,12 @@ class MainActivity: Activity() {
         }
         content.addView(text("角丸",20f));toggle("上の角丸","top");toggle("下の角丸","bottom")
         slider("角丸半径","radius",0,64,18)
-        content.addView(text("アプリ別設定は使用状況へのアクセスを許可した場合だけ適用します。取得するのは前面アプリ名だけで、履歴は保存・送信しません。未許可時は上の共通設定を使います。"))
+        content.addView(text("アプリ別設定は使用状況へのアクセスを許可した場合だけ適用します。取得するのは前面アプリ名だけで、履歴は保存・送信しません。未許可時は「通常」の配置になります。上・下の全体ON/OFFは維持します。"))
         content.addView(text(if(OverlayService.usageAllowed(this))"使用状況へのアクセス：許可済み" else "使用状況へのアクセス：未許可"))
         button("使用状況へのアクセスを設定") { startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS)) }
-        button("アプリ別の上・下を設定") { chooseApp() }
+        button("アプリ別の角丸配置") { chooseApp() }
+        button("全画面判定のアプリ別例外") { chooseApp(true) }
+        content.addView(text("例外は「全画面のときだけ」がONのときに適用し、使用状況へのアクセスが必要です。通常の自動判定・常時表示はそのまま使えます。"))
         toggle("互換表示方式（バーより背面）","modern")
         content.addView(text("標準方式はAndroid 6〜10向けの旧レイヤーです。表示できない機種は互換方式を試してください。互換方式ではシステムバーの上に角丸を描けません。Android 11以降は保証外です。"))
         content.addView(text("外観合わせ",20f))
@@ -75,16 +77,16 @@ class MainActivity: Activity() {
         button("電池の最適化設定") { startActivity(Intent(SystemSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
         content.addView(text("省電力設定で停止する場合は端末側でOverlayを除外してください。再起動時は、停止前に表示が有効なら復元します。通信・広告・画面収集はありません。"))
     }
-    private fun chooseApp() {
+    private fun chooseApp(display: Boolean=false) {
         val pm=packageManager
         val apps=pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0)
             .distinctBy { it.activityInfo.packageName }.sortedBy { it.loadLabel(pm).toString() }
-        AlertDialog.Builder(this).setTitle("アプリ別角丸").setItems(apps.map { it.loadLabel(pm).toString() }.toTypedArray()) { _,i ->
+        AlertDialog.Builder(this).setTitle(if(display)"時計・電池の表示例外" else "アプリ別角丸").setItems(apps.map { it.loadLabel(pm).toString() }.toTypedArray()) { _,i ->
             val pkg=apps[i].activityInfo.packageName
-            val labels=arrayOf("共通設定に従う","なし","上のみ","下のみ","上下")
-            val selection=when(settings.rule(pkg)) {null->0;0->1;1->2;2->3;else->4}
+            val labels=if(display)arrayOf("自動判定","時計・電池を表示","時計・電池を非表示") else Policy.cornerLabels.toTypedArray()
+            val selection=if(display)settings.displayRule(pkg) else settings.rule(pkg)
             AlertDialog.Builder(this).setTitle(apps[i].loadLabel(pm)).setSingleChoiceItems(labels,selection) { dialog,n ->
-                settings.setRule(pkg,if(n==0)null else n-1);dialog.dismiss()
+                if(display)settings.setDisplayRule(pkg,n) else settings.setRule(pkg,n);dialog.dismiss()
             }.show()
         }.show()
     }
@@ -92,10 +94,21 @@ class MainActivity: Activity() {
 
 @Suppress("DEPRECATION")
 class PreviewActivity: Activity() {
+    fun applyBars(mode: String) {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor=android.graphics.Color.rgb(20,150,80)
+        window.navigationBarColor=android.graphics.Color.rgb(30,90,180)
+        window.decorView.systemUiVisibility=when(mode) {
+            "normal"->0
+            "transparent"->{ window.statusBarColor=android.graphics.Color.TRANSPARENT;View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE }
+            "status-hidden"->{window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);View.SYSTEM_UI_FLAG_FULLSCREEN}
+            else->{window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY}
+        }
+    }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        window.decorView.systemUiVisibility=View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        applyBars(intent.getStringExtra("bars") ?: "immersive")
         val dark=intent.getBooleanExtra("dark",false)
         setContentView(TextView(this).apply {
             setBackgroundColor(if(dark)android.graphics.Color.BLACK else android.graphics.Color.WHITE)

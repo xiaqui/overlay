@@ -8,3 +8,5 @@ Android 6〜10 / Xperia向けの軽量時計・電池・黒い角丸。通信・
 設定画面の白/黒の全画面確認で、影とタッチ透過を検収してください。実機未検証事項は docs/WORK_PROGRESS.md と docs/DEVICE_TEST_JA.md を参照。
 
 ビルド: Java17 / Gradle8.7 / Android SDK35。`gradle testDebugUnitTest lintDebug assembleDebug`。署名は既存KEYSTORE_* SecretsをActionsに渡し、mainでテスト・署名照合・再ダウンロード検証後にGitHub prereleaseへ直接配布。Artifactアップロードは使いません。秘密鍵・参考APK・ユーザースクリーンショットはリポジトリに含めません。
+
+Issue #4修正: アプリ別角丸は「なし / 通常 / 上だけ内側 / 下だけ内側 / 上下とも内側」。未設定は通常、全体ON/OFFは維持。全画面判定・バー内側配置はInsetsを観測し、機種で合わない場合の時計/電池のアプリ別例外を用意。制限・旧設定移行はdocs/ISSUE4_JA.md、検証状況はdocs/WORK_PROGRESS.md。

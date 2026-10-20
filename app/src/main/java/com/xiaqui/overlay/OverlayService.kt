@@ -17,7 +17,10 @@ class OverlayService : Service() {
     private val handler=Handler(Looper.getMainLooper())
     private val windows=mutableListOf<View>()
     private var status: StatusView?=null
-    private var probe: View?=null
+    private var observation: BarObservation?=null
+    private var bars=BarState()
+    private var lastCornerLayout: List<CornerOffset>?=null
+    private var updatingBars=false
     private var screenOn=true
     private var battery=-1
     private var charging=false
@@ -39,14 +42,14 @@ class OverlayService : Service() {
         override fun run() {
             if (!screenOn) return
             if (!SystemSettings.canDrawOverlays(this@OverlayService)) { fail("重ねて表示の権限が取り消されました");return }
-            try { updateForeground();updateCorners() }
+            try { updateForeground();refreshBars();updateStatusVisibility();updateCorners() }
             catch (_: SecurityException) { fail("表示権限または使用状況の許可を確認してください");return }
             catch (_: WindowManager.BadTokenException) { fail("表示ウィンドウが拒否されました");return }
-            handler.postDelayed(this,1000)
+            handler.postDelayed(this,if(settings.needsBars())500 else 1000)
         }
     }
     private val listener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key != "diagnostic") rebuild()
+        if (key != "diagnostic") { lastQuery=0;rebuild() }
     }
     private val receiver=object: BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -97,9 +100,10 @@ class OverlayService : Service() {
         settings.set("enabled",false);clearWindows();stopSelf()
     }
     private fun clearWindows() {
-        handler.removeCallbacks(minute);handler.removeCallbacks(poll)
+        handler.removeCallbacks(minute);handler.removeCallbacks(poll);handler.removeCallbacks(onBarsChanged)
+        observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
-        windows.clear();cornerWindows.clear();status=null;probe=null;lastMask=-1
+        windows.clear();cornerWindows.clear();status=null;lastMask=-1;runtime=null
     }
     private fun params(width: Int,height: Int,gravityValue: Int,typeValue: Int=activeType)=WindowManager.LayoutParams(
         width,height,typeValue,
@@ -127,31 +131,53 @@ class OverlayService : Service() {
                     x=(settings.number("x",4)*density).toInt();y=(settings.number("y",0)*density).toInt()
                 }
                 add(status!!,p)
-                if(settings.bool("fullscreen")) attachProbe()
+                if(settings.needsBars())attachBarObservation()
                 updateStatusVisibility()
                 updateForeground();updateCorners()
                 settings.prefs.edit().putString("diagnostic",if(type==2006)"旧方式 2006（バーとの重なりは機種依存）" else "互換方式 2038（システムバーより背面）").apply()
                 handler.post(minute)
-                if(settings.hasRules() && usageAllowed(this))handler.post(poll)
+                if(settings.needsBars() || (settings.hasRules() && usageAllowed(this)))handler.post(poll)
                 return
             } catch (_: SecurityException) { clearWindows() }
               catch (_: WindowManager.BadTokenException) { clearWindows() }
         }
         fail("表示ウィンドウを作れません。権限・端末の制限を確認してください")
     }
-    private fun attachProbe() {
-        val v=View(this)
-        // A normally inset, invisible 1px window tracks whether the status bar reserves space.
-        val p=params(1,1,Gravity.TOP or Gravity.LEFT,if(Build.VERSION.SDK_INT>=26)2038 else 2002)
-        p.flags=WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        add(v,p);probe=v
-        v.viewTreeObserver.addOnGlobalLayoutListener { updateStatusVisibility() }
+    private fun attachBarObservation() {
+        val observer=BarObservation(this) {
+            // Post after onApplyWindowInsets stores the latest root insets.
+            handler.removeCallbacks(onBarsChanged);handler.post(onBarsChanged)
+        }
+        observation=observer
+        try {
+            add(observer.vertical,BarObservation.params(true,Build.VERSION.SDK_INT))
+            add(observer.horizontal,BarObservation.params(false,Build.VERSION.SDK_INT))
+        } catch (_: SecurityException) { detachObservation(observer) }
+          catch (_: WindowManager.BadTokenException) { detachObservation(observer) }
+    }
+    private fun detachObservation(observer: BarObservation) {
+        observation=null
+        observer.views.forEach { if(windows.remove(it))runCatching { wm.removeViewImmediate(it) } }
+        bars=BarState()
+    }
+    private val onBarsChanged=Runnable {
+        if(screenOn && observation!=null)try { refreshBars();updateStatusVisibility();updateCorners() }
+        catch (_: SecurityException) { fail("表示権限を確認してください") }
+        catch (_: WindowManager.BadTokenException) { fail("表示ウィンドウが拒否されました") }
+    }
+    private fun refreshBars() {
+        if(updatingBars)return
+        updatingBars=true
+        try { bars=observation?.read() ?: BarState() } finally { updatingBars=false }
     }
     private fun updateStatusVisibility() {
-        val visible=if(!settings.bool("fullscreen")) true else probe?.let {
-            val xy=IntArray(2);it.getLocationOnScreen(xy);xy[1]==0
-        } ?: true
-        status?.visibility=if(visible && (settings.bool("clock",true)||settings.bool("battery",true)))View.VISIBLE else View.INVISIBLE
+        val exception=foreground?.let { settings.displayRule(it) } ?: 0
+        val visible=Policy.statusVisible(settings.bool("fullscreen"),exception,bars)
+        status?.visibility=if(screenOn && visible && (settings.bool("clock",true)||settings.bool("battery",true)))View.VISIBLE else View.INVISIBLE
+        publishRuntime()
+    }
+    private fun publishRuntime() {
+        runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList())
     }
     private fun updateForeground() {
         if(!settings.hasRules() || !usageAllowed(this)) { foreground=null;return }
@@ -166,16 +192,19 @@ class OverlayService : Service() {
         lastQuery=now-1
     }
     private fun updateCorners() {
-        val mask=Policy.corners(settings.defaultMask(),foreground?.let { settings.rule(it) })
-        if(mask==lastMask)return
+        val mode=foreground?.let { settings.rule(it) } ?: Policy.NORMAL
+        val mask=Policy.cornerMask(settings.defaultMask(),mode)
+        val offsets=(0..3).map { Policy.cornerOffset(it,mode,bars) }
+        if(mask==lastMask && offsets==lastCornerLayout) { publishRuntime();return }
         cornerWindows.forEach { runCatching { wm.removeViewImmediate(it) };windows.remove(it) };cornerWindows.clear()
         val r=(settings.number("radius",18)*resources.displayMetrics.density).toInt()
         if(r>0)for(c in 0..3) {
             if((mask and (if(c<2)1 else 2))==0)continue
             val gravity=(if(c<2)Gravity.TOP else Gravity.BOTTOM) or (if(c%2==0)Gravity.LEFT else Gravity.RIGHT)
-            val v=CornerView(this,c);add(v,params(r,r,gravity));cornerWindows.add(v)
+            val v=CornerView(this,c)
+            add(v,params(r,r,gravity).apply { x=offsets[c].x;y=offsets[c].y });cornerWindows.add(v)
         }
-        lastMask=mask
+        lastMask=mask;lastCornerLayout=offsets;publishRuntime()
     }
     override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig);lastQuery=0;rebuild() }
     override fun onDestroy() {
@@ -184,7 +213,9 @@ class OverlayService : Service() {
         clearWindows();stopForeground(true);super.onDestroy()
     }
     override fun onBind(intent: Intent?) : IBinder?=null
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>)
     companion object {
+        @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {
             val ops=context.getSystemService(APP_OPS_SERVICE) as AppOpsManager
             return ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,android.os.Process.myUid(),context.packageName)==AppOpsManager.MODE_ALLOWED

@@ -7,4 +7,7 @@ cleanup_crashpad() {
   pkill -KILL -x crashpad_handle || true
 }
 trap cleanup_crashpad EXIT
-gradle connectedDebugAndroidTest --no-daemon
+if ! gradle connectedDebugAndroidTest --no-daemon; then
+  adb logcat -d -s OverlayBarsTest:I AndroidRuntime:E '*:S' || true
+  exit 1
+fi

@@ -150,7 +150,7 @@ jobs:
           test "$expected" = "$actual"
           printf '%s\n' "$GITHUB_SHA" > delivery/SOURCE_SHA.txt
           (cd delivery && sha256sum Overlay.apk > SHA256SUMS)
-          tag="overlay-0.1.0-${GITHUB_SHA:0:8}"
+          tag="overlay-0.2.0-${GITHUB_SHA:0:8}"
           cat > delivery/RELEASE_NOTES.md <<NOTES
           Android 6–10 / Xperia priority. Original implementation; no reference APK assets.
           Device acceptance is pending: overlay layer, shadow, touch passthrough, sleep/boot, per-app corners.
@@ -176,7 +176,7 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay 0.1.0 (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay 0.2.0 (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
           fi
           gh release upload "$tag" delivery/Overlay.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
           mkdir "$RUNNER_TEMP/retrieved"
