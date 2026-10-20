@@ -4,7 +4,7 @@
 ## アプリ別角丸
 5択をそのまま使用: なし / 通常 / 上だけ内側 / 下だけ内側 / 上下とも内側。未設定は通常。なしは角丸なし、通常は画面端、上だけ内側は上の2隅のみ現在のstatus insetへ、下だけ内側は下の2隅のみ現在のnav insetへ、上下とも内側はその両方。上/下の全体有効スイッチと半径は保持し、各モードにも全体スイッチを適用する。
 
-非表示のバーはcurrent inset=0。stable insetは可視状態に使わず、IME等の過大値を上限で除くためだけに参照する。横画面でナビが側面へ移った場合、下側の該当隅をその側面の内側へ移す（右ナビなら右下のx、左ナビなら左下のx）。上側はstatusのtopだけで制御。
+非表示のバーはcurrent inset=0。stable insetは可視状態に使わず、IME等の過大値を上限で除くためだけに参照する。横画面でナビが側面へ移った場合、下側の該当隅をその側面の内側へ移す（右ナビなら右下のx、左ナビなら左下のx）。上側はstatusのtopだけで制御。可視システムバーが2006/2038窓より上層になるOSでは、画面端に配置した角丸はバーに隠れることがある（既存窓方式の制限）。内側配置とバー非表示時の描画は実画素、可視バーに重なる通常配置は実View座標で検証する。角丸窓は実画面サイズから左上基準の目標座標を計算し、レイアウト後のgetLocationOnScreenとの差を補正する。BOTTOM/RIGHT重力によるnav二重移動と、左navでの親フレーム原点移動を避ける。
 
 保存はcorner2:*とcornerSchema=2へ分離。旧app:*の0→なし、1/2/3→通常。旧上のみ/下のみは表示範囲であり内側位置ではないため再解釈しない。旧キーと全体ON/OFFを保持し、1回だけ原子的に移行。新キーを上書きしない。旧版へ戻した場合は旧キーを読む。
 
@@ -18,8 +18,10 @@
 観測はレイアウト/Insets通知と画面ON時500msの軽い再確認。消灯中は停止。時計描画の分単位更新、電池イベント、既存署名、applicationIdは維持。
 
 ## 検証
-JVMで5状態/上下別offset/側面nav/バー非表示/unknown/例外/旧値移行を検証。API23/24/26/28/29で、通常→透明→没入型→statusのみ非表示→通常、別アプリへの切替、回転、実描画offset、設定移行、常時表示の回帰を確認する。結果はWORK_PROGRESS.mdへ記録し、不成立を成功扱いしない。
+JVMで5状態/上下別offset/側面nav/バー非表示/unknown/例外/旧値移行を検証。API23/24/26/28/29で、通常→透明→没入型→statusのみ非表示→通常、別アプリから新しい全画面Activityへの切替、通常横/逆横回転と側面nav（API26以降は左navも必須）、実描画offset、設定移行、常時表示の回帰を確認する。結果はWORK_PROGRESS.mdへ記録し、不成立を成功扱いしない。
 
 参照した一次資料:
 - https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android10-c2f2-s2-release/services/core/java/com/android/server/wm/DisplayPolicy.java
 - https://developer.android.com/reference/android/view/WindowInsets
+
+- https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android10-release/services/core/java/com/android/server/policy/WindowManagerPolicy.java

@@ -1,9 +1,55 @@
-# Issue #4 修正作業（2026-10-21）
-最新main b1d7e1800fb95ebfe75749b4e029912672f28a47を起点。今回のユーザー報告により、初版のXperia実機での基本機能は良好。以下の初版記録にある「全実機未検証」は初版配布時点の記録であり、今回の修正分の実機検収とは区別する。
+# Issue #4 修正・配布記録（2026-10-21）
+正本: https://github.com/xiaqui/overlay/issues/4#issuecomment-6298032616 。初版のXperia基本機能は良好とのユーザー報告を受け、既存実装を維持して2点を局所修正。修正版の実機検収は未実施。以下の初版記録にある「全実機未検証」は初版配布時点の履歴。
 
-正本: Issue #4最新コメント6298032616。全画面のみの旧方式は実機不動作を確認したため完成扱いを取り消し、Insets観測方式とアプリ別例外へ修正中。角丸は指定5択/位置offsetへ訂正。仕様・移行・制限はISSUE4_JA.md。
+## 実装とソース
+- 全画面のみ: 旧Y座標判定を廃止し、透明な縦横1px観測窓のcurrent Insetsと実フレーム差からstatus/navを測定。通常/透明バー時は時計・電池を隠し、status非表示時は表示。常時表示は維持。unknown時は表示維持、全画面モード用のアプリ別表示/非表示例外を追加。
+- アプリ別角丸: 「なし / 通常 / 上だけ内側 / 下だけ内側 / 上下とも内側」の5択。未設定=通常、非表示バーoffset0。全体上下ON/OFF・半径を維持。実View位置を補正し、下端基準の二重移動と逆横左navの親原点移動を解消。
+- 設定移行: 旧app:*の0→なし、1/2/3→通常をcorner2:*へ一度だけ原子的に移行。旧キーと全体設定を残し、既存新キーを上書きしない。
 
-現在: 実装と自動試験を追加。CI・独立レビュー・新署名APK配布はまだ未完了。完成SHA/Release/SHA256は配布後に追記する。初版の署名鍵・applicationIdは維持。
+| 項目 | 値 |
+|---|---|
+| 起点main | b1d7e1800fb95ebfe75749b4e029912672f28a47 |
+| 実装PR | https://github.com/xiaqui/overlay/pull/5 — マージ済み |
+| 最終PR head | 73d85d61a54d6813f6a8f8298a77fc3101bc306f |
+| #5 merge / APK source SHA | 2f942bbaebadc7bee7666c0c9beb9ef1bc88280c |
+| PR CI | https://github.com/xiaqui/overlay/actions/runs/39481565220 — success |
+| main配送CI | https://github.com/xiaqui/overlay/actions/runs/39482559225 — success |
+| app | com.xiaqui.overlay / versionName 0.2.0 / versionCode 2 |
+| ビルド環境 | Workで編集、ActionsのJava17 / Gradle8.7 / compile35 / min23 / target25。Codex専用セットアップ不使用 |
+
+## 自動試験・独立レビュー
+PR最終CIとmain再試験はJVM11件、assembleDebugAndroidTest、lintDebug、assembleDebug成功。ソフトナビバー付きNexus 4のAPI23/24/26/28/29で各4件、計20件のinstrumentationがPR・main双方で成功。設定移行、通常/透明/没入型/statusのみ非表示、別アプリ(Settings)→新しい全画面Activity、縦/横/逆横、5モード、上下内側の実画素、実View座標、アプリ別例外、常時表示、白黒画面、時計・電池、タッチ透過、停止、2038互換方式を検証。既存ActivityへのBACK復帰を確認したとは扱わない。API23/24は逆横でも右nav、26以降は左navの実測を必須にした。
+
+試験途中の失敗も追跡した。hardware mainkeysのdefault AVDではnav=0が正しいため、ソフトnav付き構成へ変更。ナビ付き実画素試験で下端の二重移動を検出して修正した。ActivityMonitorの古いonResume参照をstartActivitySyncへ変更し、実ServiceRecord消失待ちで試験を分離。OS初回の没入型案内はCI環境だけで確認済みに設定し、実際のタップ後Activity終了assertは維持した。失敗runを合格扱いせず、最終SHAで全OSを再実行した。
+
+独立担当とGitHub自動レビューを実施。P1（navフレームをInsetsだけで見失う）、P2（側面cutout誤認、逆横左navの親原点）を修正。最終差分の重点再レビューで追加P1/P2なし。GitHubのP2スレッドは返信・解決済み。詳細はREVIEW_JA.md。
+
+## APK・署名・配布
+| 項目 | 実測値・検査 |
+|---|---|
+| Release URL | https://github.com/xiaqui/overlay/releases/tag/overlay-0.2.0-2f942bba |
+| tag / Release ID | overlay-0.2.0-2f942bba / 418788813 |
+| 状態 | 公開prerelease、draft=false（修正分の実機検収前） |
+| APK URL | https://github.com/xiaqui/overlay/releases/download/overlay-0.2.0-2f942bba/Overlay.apk |
+| APK asset ID / 容量 | 660271200 / 645419 bytes（630.29 KiB） |
+| APK SHA256 | a5fbf73e08e5e985a6b11c12fc81078d7f52f134cd3633b93c9a3892b472fe1b |
+| Release job | 118838378222 — success |
+| releaseビルド | testDebugUnitTest / lintDebug / assembleRelease — success |
+| パッケージ検査 | aaptでcom.xiaqui.overlay / min23 / target25 / 非debuggable / INTERNET権限なしを照合 |
+| 署名検査 | apksigner verify成功。既存keystore公開証明書と一致。初版APKを既知SHA256 d53d2c9d1d9d0f0780410ace4e2353d5921d990d8908c4d630d8ec3326348ce1で確認し、そのSigner証明書とも一致 |
+| 配送再取得 | Actionsでdraft添付APKを認証付き再取得し、cmp / sha256sum -c / apksigner verify成功後に公開 |
+| Source照合 | Actions head SHA、Release target、tagのcommit、Release本文、SOURCE_SHA.txtが上記#5 merge SHAと一致 |
+| 添付資料 | APK-VERIFICATION.txt / SHA256SUMS / SOURCE_SHA.txt |
+| Artifact | アップロード不使用。Releaseへ直接添付 |
+
+WorkでもRelease metadataを独立照合した。APK asset digestは上記SHA256と一致。SOURCE_SHA.txt（merge SHA＋改行、41 bytes）の期待digestは53fc5d1bb1c780f995a89d0c154754b0a599350e27a79673f34dd1fb8f932ddcでasset digestと一致。SHA256SUMS（上記APK hash＋2空白＋Overlay.apk＋改行、78 bytes）の期待digest d34f33237f8565f44db61959a97a9e360fe596eefa6dbb3b587e059ef59973e1も一致した。バイナリ再取得・署名の実測はActionsの同一Release jobで行い、ログの初版APK/新APKのchecksum OKと成功を確認した。秘密値は記録せず署名材料はjob終了時に削除。
+
+本記録の追記は文書のみ。配布APKのソースは#5 merge SHAに固定し、後続文書マージSHAとは区別する。
+
+## 実機未検証・動作の限界
+修正版のXperia、Android9/10各実機、OEM固有バー、3ボタン/2ボタン/ジェスチャー、IME、transientバー、切り欠き、長時間常駐/消費電力、更新インストールの実機受入は未実施。手順はDEVICE_TEST_JA.md。
+
+Insets観測は他アプリflagsの直接取得APIではない。OEMや一時表示バーが反映されない場合がある。上下左右いずれかにcutoutがあるとunknownとして表示維持＋offset0へフォールバックし、必要なアプリへ例外を設定する。可視システムバーが2006/2038窓の手前になるOSでは「通常」の角丸はバーに隠れることがある。これらを自動判定完全対応とは扱わない。時計/電池の描画・影・タッチ透過・常駐処理は既存実装を保持し、自動回帰試験を通した。
 
 ---
 

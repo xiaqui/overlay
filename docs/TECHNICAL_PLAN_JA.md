@@ -1,7 +1,9 @@
 # Overlay 技術方針・検証計画
 更新: 2026-10-21
 
-## 現行テンプレート確認済み事項
+Issue #4の最新コメント6298032616を優先。現在の全画面/角丸仕様・実装・制限はISSUE4_JA.md、検証結果はWORK_PROGRESS.md。以下の初版計画は履歴として残し、古い仮説やCodex環境の想定を現行の前提にしない。Workで編集し、GitHub ActionsのJava17/Gradle8.7/SDK35/Build Tools35.0.0で検証・署名配送する。
+
+## 初版着手前のテンプレート記録（履歴）
 - app/build.gradle.kts: compileSdk=35, minSdk=26, targetSdk=35, namespace/applicationId=com.xiaqui.androidtemplate。着手時に変更。
 - .github/workflows/build-android-apk.yml: gradle testDebugUnitTest assembleDebug、Artifact 3日保管。
 - Actionsの署名Secrets: KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD。Gradle実行時環境: ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD。
@@ -25,7 +27,7 @@
 | サイズ | 横画面、回転、ナビゲーションバー、画面密度差 |
 | 常駐 | 消灯復帰、タスク切替、再起動、サービス再作成、電池最適化 |
 | 個別設定 | 時計のみ、電池のみ、角丸のみ、各機能OFF |
-| アプリ別角丸 | 対象の切替、上のみ／下のみ／両方／なし、判定権限拒否 |
+| アプリ別角丸 | 指定5択、未設定=通常、上下/左右navの内側位置、旧値移行、判定権限拒否 |
 | 配送 | package ID、minSdk 23、署名証明書、APK SHA256、Release再取得照合 |
 
 Android 9/10端末がない場合はエミュレータを利用し、実機合格と書かない。APK参考実装から得た事実・推定・未検証は区別。
