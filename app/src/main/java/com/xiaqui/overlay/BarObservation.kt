@@ -63,7 +63,7 @@ class BarObservation(private val context: Context, private val changed: () -> Un
             gravity=if(vertical)android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL else android.view.Gravity.LEFT or android.view.Gravity.CENTER_VERTICAL
             softInputMode=WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
             title=if(vertical)"Overlay bar observer V" else "Overlay bar observer H"
-            if(sdk>=28)layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            if(Build.VERSION.SDK_INT>=28)layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
     }
 }
