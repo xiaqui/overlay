@@ -1,13 +1,63 @@
-name: Build Android APK
+name: Overlay checks and signed Release
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**', '.github/scripts/**']
   pull_request:
     branches: [main]
+    paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**', '.github/scripts/**']
+permissions:
+  contents: read
+concurrency:
+  group: overlay-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  build:
+  cleanup-obsolete-checks:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel older runs of this same PR workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_BRANCH: ${{ github.head_ref }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+          gh api --method GET "repos/$GH_REPO/actions/runs" -f event=pull_request -f branch="$PR_BRANCH" -f per_page=100 > "$RUNNER_TEMP/runs.json"
+          jq -r --arg name "$WORKFLOW_NAME" --argjson current "$GITHUB_RUN_ID" '.workflow_runs[] | select(.name == $name and .id < $current and .status != "completed") | .id' "$RUNNER_TEMP/runs.json" | while read -r id; do
+            gh api --method POST "repos/$GH_REPO/actions/runs/$id/cancel" || true
+          done
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install exact SDK tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Test, lint and build (no Artifact upload)
+        run: gradle testDebugUnitTest lintDebug assembleDebug --no-daemon
+  emulator:
+    timeout-minutes: 15
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [23, 24, 26, 28, 29]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -17,34 +67,126 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Prepare required shared signing
+      - name: Free unused hosted SDK space
+        run: sudo rm -rf /usr/share/dotnet
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          disk-size: 2048M
+          disable-animations: true
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/emulator-test.sh
+  release:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [check, emulator]
+    concurrency:
+      group: overlay-release-${{ github.sha }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install exact SDK tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Prepare signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "ERROR: Shared signing secrets are missing. Refusing unsigned/debug-key delivery."
-            exit 1
-          fi
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-signing.jks"
-          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/android-signing.jks" >> "$GITHUB_ENV"
-          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-      - name: Verify keystore alias
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/overlay.jks"
+          keytool -list -keystore "$RUNNER_TEMP/overlay.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > /dev/null
+      - name: Test, lint and assemble signed APK
         env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/overlay.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle testDebugUnitTest lintDebug assembleRelease --no-daemon
+      - name: Verify and publish directly to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          keytool -list -keystore "$ANDROID_KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null
-          echo "Shared signing alias verified."
-      - name: Test and build APK
-        run: gradle testDebugUnitTest assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 3
-          name: android-template-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          set -euo pipefail
+          mkdir delivery
+          cp app/build/outputs/apk/release/app-release.apk delivery/Overlay.apk
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          "$tools/apksigner" verify --verbose --print-certs delivery/Overlay.apk > delivery/APK-VERIFICATION.txt
+          "$tools/aapt" dump badging delivery/Overlay.apk > "$RUNNER_TEMP/badging.txt"
+          grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/badging.txt"
+          grep -q "sdkVersion:'23'" "$RUNNER_TEMP/badging.txt"
+          grep -q "targetSdkVersion:'25'" "$RUNNER_TEMP/badging.txt"
+          if grep -q 'application-debuggable' "$RUNNER_TEMP/badging.txt"; then exit 1; fi
+          if "$tools/aapt" dump permissions delivery/Overlay.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
+          keytool -exportcert -keystore "$RUNNER_TEMP/overlay.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > "$RUNNER_TEMP/cert.der"
+          expected=$(sha256sum "$RUNNER_TEMP/cert.der" | cut -d ' ' -f1)
+          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' delivery/APK-VERIFICATION.txt)
+          test "$expected" = "$actual"
+          printf '%s\n' "$GITHUB_SHA" > delivery/SOURCE_SHA.txt
+          (cd delivery && sha256sum Overlay.apk > SHA256SUMS)
+          tag="overlay-0.1.0-${GITHUB_SHA:0:8}"
+          cat > delivery/RELEASE_NOTES.md <<NOTES
+          Android 6–10 / Xperia priority. Original implementation; no reference APK assets.
+          Device acceptance is pending: overlay layer, shadow, touch passthrough, sleep/boot, per-app corners.
+          Source: $GITHUB_SHA
+          Workflow: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          $(cat delivery/SHA256SUMS)
+          NOTES
+          if gh release view "$tag" --json isDraft,targetCommitish > "$RUNNER_TEMP/existing-release.json"; then
+            test "$(jq -r '.targetCommitish' "$RUNNER_TEMP/existing-release.json")" = "$GITHUB_SHA"
+            if [ "$(jq -r '.isDraft' "$RUNNER_TEMP/existing-release.json")" = false ]; then
+              # Published assets are immutable here: validate and reuse, never overwrite.
+              mkdir "$RUNNER_TEMP/published"
+              gh release download "$tag" --pattern '*' --dir "$RUNNER_TEMP/published"
+              cmp delivery/SOURCE_SHA.txt "$RUNNER_TEMP/published/SOURCE_SHA.txt"
+              (cd "$RUNNER_TEMP/published" && sha256sum -c SHA256SUMS)
+              "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/published/Overlay.apk" > "$RUNNER_TEMP/published-cert.txt"
+              test "$expected" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/published-cert.txt")"
+              "$tools/aapt" dump badging "$RUNNER_TEMP/published/Overlay.apk" > "$RUNNER_TEMP/published-badging.txt"
+              grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/published-badging.txt"
+              grep -q "sdkVersion:'23'" "$RUNNER_TEMP/published-badging.txt"
+              cat "$RUNNER_TEMP/published/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
+              echo "Reused verified Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay 0.1.0 (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
+          fi
+          gh release upload "$tag" delivery/Overlay.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
+          mkdir "$RUNNER_TEMP/retrieved"
+          gh release download "$tag" --pattern Overlay.apk --dir "$RUNNER_TEMP/retrieved"
+          cmp delivery/Overlay.apk "$RUNNER_TEMP/retrieved/Overlay.apk"
+          (cd "$RUNNER_TEMP/retrieved" && sha256sum -c "$GITHUB_WORKSPACE/delivery/SHA256SUMS")
+          "$tools/apksigner" verify "$RUNNER_TEMP/retrieved/Overlay.apk"
+          gh release edit "$tag" --draft=false --prerelease
+          cat delivery/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
+          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/overlay.jks" "$RUNNER_TEMP/cert.der"
