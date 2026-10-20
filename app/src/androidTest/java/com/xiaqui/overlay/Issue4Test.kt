@@ -72,7 +72,9 @@ class Issue4Test {
         bars("immersive",true)
         ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitFor("external settings app shows status bar") { OverlayService.runtime?.let { it.bars.known && it.bars.top>0 && !it.visible }==true }
-        shell("input keyevent KEYCODE_BACK")
+        // Start a fresh fullscreen Activity: Settings task/back-stack behavior varies by OS.
+        main { preview!!.finish() }
+        launch("immersive")
         waitFor("return to fullscreen app") { OverlayService.runtime?.let { it.bars.known && it.bars.top==0 && it.visible }==true }
         bars("normal",false)
         main { settings.set("fullscreen",false) }
