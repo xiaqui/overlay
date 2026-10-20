@@ -3,14 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 android {
-    namespace = "com.xiaqui.androidtemplate"
+    namespace = "com.xiaqui.overlay"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.xiaqui.androidtemplate"
-        minSdk = 26
-        targetSdk = 35
+        applicationId = "com.xiaqui.overlay"
+        minSdk = 23
+        targetSdk = 25
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
     }
     signingConfigs {
         create("delivery") {
@@ -24,11 +24,16 @@ android {
         }
     }
     buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("delivery")
+            isMinifyEnabled = false
+        }
         getByName("debug") {
             if (!System.getenv("ANDROID_KEYSTORE_FILE").isNullOrBlank())
                 signingConfig = signingConfigs.getByName("delivery")
         }
     }
+    lint { disable += "ExpiredTargetSdkVersion" }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -36,6 +41,6 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
     testImplementation("junit:junit:4.13.2")
 }
+
