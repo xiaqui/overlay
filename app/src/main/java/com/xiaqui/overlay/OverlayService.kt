@@ -130,7 +130,7 @@ class OverlayService : Service() {
                 if(settings.bool("fullscreen")) attachProbe()
                 updateStatusVisibility()
                 updateForeground();updateCorners()
-                settings.prefs.edit().putString("diagnostic",if(type==2006)"旧方式 2006（標準バー上も描画可能）" else "互換方式 2038（システムバーより背面）").apply()
+                settings.prefs.edit().putString("diagnostic",if(type==2006)"旧方式 2006（バーとの重なりは機種依存）" else "互換方式 2038（システムバーより背面）").apply()
                 handler.post(minute)
                 if(settings.hasRules() && usageAllowed(this))handler.post(poll)
                 return

@@ -37,12 +37,20 @@ class OverlaySmokeTest {
             }
             waitFor { settings.prefs.getString("diagnostic","")?.startsWith("旧方式 2006")==true }
             for(dark in listOf(false,true)) {
+                val monitor=instrumentation.addMonitor(PreviewActivity::class.java.name,null,false)
                 context.startActivity(Intent(context,PreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("dark",dark))
+                val preview=instrumentation.waitForMonitorWithTimeout(monitor,10_000)
+                instrumentation.removeMonitor(monitor)
+                assertNotNull("Preview reached foreground",preview)
                 instrumentation.waitForIdleSync()
-                android.os.SystemClock.sleep(500)
+                android.os.SystemClock.sleep(1000)
                 val shot=instrumentation.uiAutomation.takeScreenshot()
                 assertNotNull("Fullscreen display is capturable",shot)
                 val bitmap=shot!!
+                val background=if(dark)0 else 0xFFFFFF
+                assertEquals("Preview background",background,bitmap.getPixel(bitmap.width/2,bitmap.height/4) and 0xFFFFFF)
+                assertEquals("Status bar is hidden",background,bitmap.getPixel(bitmap.width/2,2) and 0xFFFFFF)
+                assertEquals("Navigation bar is hidden",background,bitmap.getPixel(bitmap.width/2,bitmap.height-3) and 0xFFFFFF)
                 // The black mask must be present at all four physical corners.
                 for((x,y) in listOf(0 to 0,(bitmap.width-1) to 0,0 to (bitmap.height-1),(bitmap.width-1) to (bitmap.height-1))) {
                     assertEquals("Black corner at $x,$y",0,bitmap.getPixel(x,y) and 0xFFFFFF)
@@ -59,8 +67,11 @@ class OverlaySmokeTest {
                     }
                     assertTrue("Clock/battery visible above fullscreen",bright>20)
                 }
+                val x=(bitmap.width-40*context.resources.displayMetrics.density).toInt()
+                val y=(12*context.resources.displayMetrics.density).toInt()
                 bitmap.recycle()
-                shell("input tap 200 300")
+                shell("input tap $x $y")
+                waitFor { preview!!.isFinishing || preview.isDestroyed }
             }
             instrumentation.runOnMainSync { settings.set("enabled",false);context.stopService(Intent(context,OverlayService::class.java)) }
             waitFor { !shell("dumpsys activity services ${context.packageName}").contains("ServiceRecord{") }
