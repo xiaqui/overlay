@@ -32,7 +32,7 @@ class PolicyTest {
     }
     @Test fun hiddenBarsAreZeroAndUnknownTopIsNotAssumedVisible() {
         for(c in 0..3)assertEquals(CornerOffset(),Policy.cornerOffset(c,Policy.BOTH_INSIDE,BarState(true)))
-        assertEquals(CornerOffset(),Policy.cornerOffset(0,Policy.TOP_INSIDE,BarState(false,top=80)))
+        for(c in 0..3)assertEquals(CornerOffset(),Policy.cornerOffset(c,Policy.BOTH_INSIDE,BarState(false,top=80,left=80,right=80,bottom=80)))
     }
     @Test fun landscapeNavMovesOnlyCorrespondingLowerCorner() {
         val right=BarState(true,right=42)

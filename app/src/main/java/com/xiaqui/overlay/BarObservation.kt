@@ -43,11 +43,12 @@ class BarObservation(private val context: Context, private val changed: () -> Un
         val bottom=rawBottom.coerceIn(0,navHeight.coerceAtLeast(0))
         val left=rawLeft.coerceIn(0,navWidth.coerceAtLeast(0))
         val right=rawRight.coerceIn(0,navWidth.coerceAtLeast(0))
-        val cutout=if(Build.VERSION.SDK_INT>=28)v.displayCutout?.safeInsetTop ?: 0 else 0
+        val cutouts=if(Build.VERSION.SDK_INT>=28)listOfNotNull(v.displayCutout,h.displayCutout) else emptyList()
+        val cutout=if(Build.VERSION.SDK_INT>=28)cutouts.any { it.safeInsetTop>0 || it.safeInsetBottom>0 || it.safeInsetLeft>0 || it.safeInsetRight>0 } else false
         val top=(vp[1]+v.systemWindowInsetTop).coerceAtLeast(0)
-        val plausibleTop=top<=maxOf(dimension("status_bar_height"),v.stableInsetTop,cutout)
+        val plausibleTop=top<=maxOf(dimension("status_bar_height"),v.stableInsetTop)
         val frame=Rect();vertical.getWindowVisibleDisplayFrame(frame)
-        return BarState(known=cutout==0 && plausibleTop,top=if(cutout==0 && plausibleTop)top else 0,bottom=bottom,left=left,right=right,
+        return BarState(known=!cutout && plausibleTop,top=if(!cutout && plausibleTop)top else 0,bottom=if(cutout)0 else bottom,left=if(cutout)0 else left,right=if(cutout)0 else right,
             detail="insets=${v.systemWindowInsetTop},${v.systemWindowInsetBottom},${h.systemWindowInsetLeft},${h.systemWindowInsetRight} frame=${vp[1]},${vertical.height},${hp[0]},${horizontal.width} real=$real visibleTop=${frame.top} cutout=$cutout")
     }
 

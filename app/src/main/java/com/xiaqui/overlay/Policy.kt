@@ -15,6 +15,7 @@ object Policy {
     fun migrateLegacy(value: Int)=if(value==0)NONE else NORMAL
     fun cornerMask(globalMask: Int,mode: Int)=if(mode==NONE)0 else globalMask and 3
     fun cornerOffset(corner: Int,mode: Int,bars: BarState): CornerOffset {
+        if(!bars.known)return CornerOffset()
         val topInside=mode==TOP_INSIDE || mode==BOTH_INSIDE
         val bottomInside=mode==BOTTOM_INSIDE || mode==BOTH_INSIDE
         if(corner<2)return CornerOffset(y=if(topInside && bars.known)bars.top.coerceAtLeast(0) else 0)
