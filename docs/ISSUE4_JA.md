@@ -9,7 +9,7 @@
 保存はcorner2:*とcornerSchema=2へ分離。旧app:*の0→なし、1/2/3→通常。旧上のみ/下のみは表示範囲であり内側位置ではないため再解釈しない。旧キーと全体ON/OFFを保持し、1回だけ原子的に移行。新キーを上書きしない。旧版へ戻した場合は旧キーを読む。
 
 ## 全画面判定
-旧1px窓のY座標だけの方式を廃止。TYPE_PHONE(API23〜25)/TYPE_APPLICATION_OVERLAY(API26〜29)の透明・非focus・非touchな縦横2本の1px観測窓を使用。LAYOUT_IN_SCREEN + LAYOUT_INSET_DECOR、ADJUST_NOTHING。NO_LIMITS/STABLE/FULLSCREENは観測窓へ付けない。縦窓のtop/bottom、横窓のleft/right WindowInsetsを読み、通常の透明バーとバー非表示を区別する設計。
+旧1px窓のY座標だけの方式を廃止。TYPE_PHONE(API23〜25)/TYPE_APPLICATION_OVERLAY(API26〜29)の透明・非focus・非touchな縦横2本の1px観測窓を使用。LAYOUT_IN_SCREEN + LAYOUT_INSET_DECOR、ADJUST_NOTHING。NO_LIMITS/STABLE/FULLSCREENは観測窓へ付けない。縦窓のtop/bottom、横窓のleft/right WindowInsetsと実画面に対する窓の位置・寸法差を合成し、通常の透明バーとバー非表示を区別する設計。
 
 読取不能/初期化中は時計を表示する。常時表示モードを維持。全画面モードのときだけ、Usage Access許可を利用してアプリ別に自動/表示/非表示の例外を選択できる。例外UIは角丸の5択とは別で、6番目の角丸選択肢を増やさない。
 

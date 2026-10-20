@@ -2,6 +2,7 @@ package com.xiaqui.overlay
 
 import android.content.Context
 import android.graphics.Rect
+import android.graphics.Point
 import android.os.Build
 import android.view.View
 import android.view.WindowInsets
@@ -9,7 +10,7 @@ import android.view.WindowManager
 
 /** Two transparent 1px strips observe insets without allocating a full-screen surface. */
 @Suppress("DEPRECATION")
-class BarObservation(context: Context, private val changed: () -> Unit) {
+class BarObservation(private val context: Context, private val changed: () -> Unit) {
     private fun strip()=View(context).apply {
         importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
         setWillNotDraw(true)
@@ -23,16 +24,33 @@ class BarObservation(context: Context, private val changed: () -> Unit) {
         if(!vertical.isAttachedToWindow || !horizontal.isAttachedToWindow || vertical.height<=1 || horizontal.width<=1)return BarState()
         val v=vertical.rootWindowInsets ?: return BarState()
         val h=horizontal.rootWindowInsets ?: return BarState()
-        // Stable insets only cap IME/oversized values, never establish visibility.
-        val bottom=v.systemWindowInsetBottom.coerceIn(0,v.stableInsetBottom.coerceAtLeast(0))
-        val left=h.systemWindowInsetLeft.coerceIn(0,h.stableInsetLeft.coerceAtLeast(0))
-        val right=h.systemWindowInsetRight.coerceIn(0,h.stableInsetRight.coerceAtLeast(0))
+        val wm=vertical.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val real=Point();wm.defaultDisplay.getRealSize(real)
+        val vp=IntArray(2);val hp=IntArray(2)
+        vertical.getLocationOnScreen(vp);horizontal.getLocationOnScreen(hp)
+        // Policy can clip the observer's frame to the nav bar before calculating insets.
+        // Combine that frame gap with the remaining content inset; insets alone lose nav.
+        fun dimension(name: String): Int {
+            val id=vertical.resources.getIdentifier(name,"dimen","android")
+            return if(id==0)0 else vertical.resources.getDimensionPixelSize(id)
+        }
+        val navHeight=maxOf(dimension("navigation_bar_height"),dimension("navigation_bar_height_landscape"),v.stableInsetBottom)
+        val navWidth=maxOf(dimension("navigation_bar_width"),h.stableInsetLeft,h.stableInsetRight)
+        val rawBottom=real.y-vp[1]-vertical.height+v.systemWindowInsetBottom
+        val rawLeft=hp[0]+h.systemWindowInsetLeft
+        val rawRight=real.x-hp[0]-horizontal.width+h.systemWindowInsetRight
+        // Stable/resources cap IME/oversized values, but never establish visibility.
+        val bottom=rawBottom.coerceIn(0,navHeight.coerceAtLeast(0))
+        val left=rawLeft.coerceIn(0,navWidth.coerceAtLeast(0))
+        val right=rawRight.coerceIn(0,navWidth.coerceAtLeast(0))
         val cutout=if(Build.VERSION.SDK_INT>=28)v.displayCutout?.safeInsetTop ?: 0 else 0
-        val top=v.systemWindowInsetTop.coerceAtLeast(0)
+        val top=(vp[1]+v.systemWindowInsetTop).coerceAtLeast(0)
+        val plausibleTop=top<=maxOf(dimension("status_bar_height"),v.stableInsetTop,cutout)
         val frame=Rect();vertical.getWindowVisibleDisplayFrame(frame)
-        return BarState(known=cutout==0,top=if(cutout==0)top else 0,bottom=bottom,left=left,right=right,
-            detail="insets=$top,$bottom,$left,$right frameTop=${frame.top} cutout=$cutout")
+        return BarState(known=cutout==0 && plausibleTop,top=if(cutout==0 && plausibleTop)top else 0,bottom=bottom,left=left,right=right,
+            detail="insets=${v.systemWindowInsetTop},${v.systemWindowInsetBottom},${h.systemWindowInsetLeft},${h.systemWindowInsetRight} frame=${vp[1]},${vertical.height},${hp[0]},${horizontal.width} real=$real visibleTop=${frame.top} cutout=$cutout")
     }
+
     companion object {
         fun params(vertical: Boolean,sdk: Int)=WindowManager.LayoutParams(
             if(vertical)1 else WindowManager.LayoutParams.MATCH_PARENT,

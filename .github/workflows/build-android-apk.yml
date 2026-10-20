@@ -49,7 +49,7 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Test, lint and build (no Artifact upload)
-        run: gradle testDebugUnitTest lintDebug assembleDebug --no-daemon
+        run: gradle testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon
   emulator:
     timeout-minutes: 15
     needs: check

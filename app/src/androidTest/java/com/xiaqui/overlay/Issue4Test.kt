@@ -81,14 +81,23 @@ class Issue4Test {
     @Test fun fiveCornerModesActualPositionsRotationAndExceptions() {
         launch("normal");enable()
         waitFor("usage identifies app and bars") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.bars.known && it.bars.top>0 }==true }
+        assertTrue("visible nav bar must be measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
         for(mode in Policy.NONE..Policy.BOTH_INSIDE) {
             main { settings.setRule(ctx.packageName,mode) }
             waitFor("mode $mode settled") {
                 val state=OverlayService.runtime
-                state!=null && state.foreground==ctx.packageName && state.offsets==(0..3).map { Policy.cornerOffset(it,mode,state.bars) }
+                state!=null && state.foreground==ctx.packageName && state.bars.known && state.bars.top>0 && state.offsets==(0..3).map { Policy.cornerOffset(it,mode,state.bars) }
             }
             android.os.SystemClock.sleep(500)
             val b=OverlayService.runtime!!.bars
+            if(mode==Policy.BOTTOM_INSIDE || mode==Policy.BOTH_INSIDE) {
+                val shot=inst.uiAutomation.takeScreenshot()!!
+                val x=shot.width-1-b.right
+                val y=shot.height-1-b.bottom
+                assertTrue("navigation bar offset is nonzero",b.bottom+b.left+b.right>0)
+                assertEquals("lower corner painted inside nav",0,shot.getPixel(x,y) and 0xFFFFFF)
+                shot.recycle()
+            }
             // Inspect real pixels at the moved top-left corner; policy state alone cannot pass this test.
             if(mode!=Policy.NONE && (mode==Policy.TOP_INSIDE || mode==Policy.BOTH_INSIDE)) {
                 val shot=inst.uiAutomation.takeScreenshot()!!
@@ -99,6 +108,7 @@ class Issue4Test {
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         waitFor("landscape observed") { ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE && OverlayService.runtime?.bars?.known==true }
         bars("immersive",true);bars("normal",false)
+        assertTrue("landscape nav measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
         main { settings.setDisplayRule(ctx.packageName,1) }
         waitFor("force display exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.visible }==true }
         main { settings.setDisplayRule(ctx.packageName,2) }
