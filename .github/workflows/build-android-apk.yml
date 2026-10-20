@@ -3,10 +3,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**']
+    paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**', '.github/scripts/**']
   pull_request:
     branches: [main]
-    paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**']
+    paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**', '.github/scripts/**']
 permissions:
   contents: read
 concurrency:
@@ -67,6 +67,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Free unused hosted SDK space
+        run: sudo rm -rf /usr/share/dotnet
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -77,13 +79,11 @@ jobs:
           api-level: ${{ matrix.api }}
           arch: x86_64
           target: default
+          disk-size: 2048M
           disable-animations: true
           emulator-boot-timeout: 300
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            # API29 can leave crashpad holding the action process open after tests finish.
-            trap 'pkill -TERM -x crashpad_handle || true; sleep 2; pkill -KILL -x crashpad_handle || true' EXIT
-            gradle connectedDebugAndroidTest --no-daemon
+          script: bash .github/scripts/emulator-test.sh
   release:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: [check, emulator]
