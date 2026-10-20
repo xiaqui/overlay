@@ -27,7 +27,7 @@ class Issue4Test {
     }
     @Before fun before() {
         main { ctx.stopService(Intent(ctx,OverlayService::class.java)) }
-        waitFor("previous service stopped") { OverlayService.runtime==null }
+        waitFor("previous service stopped") { !shell("dumpsys activity services ${ctx.packageName}").contains("ServiceRecord{") }
         main { ctx.getSharedPreferences("overlay",0).edit().clear().commit() }
         settings=Settings(ctx)
         shell("input keyevent KEYCODE_WAKEUP");shell("wm dismiss-keyguard")
@@ -38,12 +38,12 @@ class Issue4Test {
         main {
             preview?.finish();settings.set("enabled",false);ctx.stopService(Intent(ctx,OverlayService::class.java))
         }
-        waitFor("service cleanup") { OverlayService.runtime==null }
+        waitFor("service cleanup") { !shell("dumpsys activity services ${ctx.packageName}").contains("ServiceRecord{") }
         main { settings.prefs.edit().clear().commit() }
     }
     private fun launch(mode: String) {
         val monitor=inst.addMonitor(PreviewActivity::class.java.name,null,false)
-        ctx.startActivity(Intent(ctx,PreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("bars",mode))
+        ctx.startActivity(Intent(ctx,PreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("bars",mode))
         preview=inst.waitForMonitorWithTimeout(monitor,10_000) as? PreviewActivity
         inst.removeMonitor(monitor);assertNotNull(preview);inst.waitForIdleSync()
     }
@@ -97,7 +97,7 @@ class Issue4Test {
                 val x=shot.width-1-b.right
                 val y=shot.height-1-b.bottom
                 assertTrue("navigation bar offset is nonzero",b.bottom+b.left+b.right>0)
-                assertEquals("lower corner painted inside nav",0,shot.getPixel(x,y) and 0xFFFFFF)
+                assertEquals("lower corner painted inside nav, bars=$b",0,shot.getPixel(x,y) and 0xFFFFFF)
                 shot.recycle()
             }
             // Inspect real pixels at the moved top-left corner; policy state alone cannot pass this test.

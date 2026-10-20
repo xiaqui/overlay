@@ -8,6 +8,6 @@ cleanup_crashpad() {
 }
 trap cleanup_crashpad EXIT
 if ! gradle connectedDebugAndroidTest --no-daemon; then
-  adb logcat -d -s OverlayBarsTest:I AndroidRuntime:E '*:S' || true
+  adb logcat -d -s OverlayBarsTest:I TestRunner:I AndroidRuntime:E '*:S' || true
   exit 1
 fi

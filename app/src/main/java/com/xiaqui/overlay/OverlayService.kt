@@ -198,11 +198,14 @@ class OverlayService : Service() {
         if(mask==lastMask && offsets==lastCornerLayout) { publishRuntime();return }
         cornerWindows.forEach { runCatching { wm.removeViewImmediate(it) };windows.remove(it) };cornerWindows.clear()
         val r=(settings.number("radius",18)*resources.displayMetrics.density).toInt()
+        val display=android.graphics.Point();wm.defaultDisplay.getRealSize(display)
         if(r>0)for(c in 0..3) {
             if((mask and (if(c<2)1 else 2))==0)continue
-            val gravity=(if(c<2)Gravity.TOP else Gravity.BOTTOM) or (if(c%2==0)Gravity.LEFT else Gravity.RIGHT)
+            // Absolute screen coordinates avoid BOTTOM/RIGHT gravity using a nav-clipped frame.
+            val x=if(c%2==0)offsets[c].x else display.x-r-offsets[c].x
+            val y=if(c<2)offsets[c].y else display.y-r-offsets[c].y
             val v=CornerView(this,c)
-            add(v,params(r,r,gravity).apply { x=offsets[c].x;y=offsets[c].y });cornerWindows.add(v)
+            add(v,params(r,r,Gravity.TOP or Gravity.LEFT).apply { this.x=x;this.y=y });cornerWindows.add(v)
         }
         lastMask=mask;lastCornerLayout=offsets;publishRuntime()
     }
