@@ -7,4 +7,9 @@ cleanup_crashpad() {
   pkill -KILL -x crashpad_handle || true
 }
 trap cleanup_crashpad EXIT
-gradle connectedDebugAndroidTest --no-daemon
+# Dismiss the OS first-use immersive tutorial, which otherwise consumes the touch-through tap.
+adb shell settings put secure immersive_mode_confirmations confirmed
+if ! gradle connectedDebugAndroidTest --no-daemon; then
+  adb logcat -d -s OverlayBarsTest:I TestRunner:I AndroidRuntime:E '*:S' || true
+  exit 1
+fi
