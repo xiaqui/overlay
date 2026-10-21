@@ -14,21 +14,24 @@ data class NavbarSpec(val width: Int,val screenHeight: Int,val navHeight: Int,va
 class NavbarBandView(context: Context,var spec: NavbarSpec): View(context) {
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     var draws=0;private set
+    var painted: (() -> Unit)?=null
     init { importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO }
     override fun onDraw(canvas: Canvas) {
         draws++
         paint.color=spec.color.color
         canvas.drawRect(0f,(height-spec.navHeight).toFloat(),width.toFloat(),height.toFloat(),paint)
-        if(!spec.bottom || spec.radius<=0)return
-        paint.color=Color.BLACK
-        val r=spec.radius.toFloat()
-        val y=height-r-if(spec.inside)spec.navHeight else 0
-        for(right in listOf(false,true)) {
-            canvas.save();canvas.translate(if(right)width.toFloat() else 0f,y+r)
-            canvas.scale(if(right)-1f else 1f,-1f)
-            val path=Path().apply { moveTo(0f,0f);lineTo(r,0f);arcTo(RectF(0f,0f,2*r,2*r),270f,-90f);close() }
-            canvas.drawPath(path,paint);canvas.restore()
+        if(spec.bottom && spec.radius>0) {
+            paint.color=Color.BLACK
+            val r=spec.radius.toFloat()
+            val y=height-r-(if(spec.inside)spec.navHeight else 0)
+            for(right in listOf(false,true)) {
+                canvas.save();canvas.translate(if(right)width.toFloat() else 0f,y+r)
+                canvas.scale(if(right)-1f else 1f,-1f)
+                val path=Path().apply { moveTo(0f,0f);lineTo(r,0f);arcTo(RectF(0f,0f,2*r,2*r),270f,-90f);close() }
+                canvas.drawPath(path,paint);canvas.restore()
+            }
         }
+        painted?.let { callback->painted=null;post { callback() } }
     }
 }
 
@@ -41,6 +44,7 @@ class NavbarLayer(private val context: Context,private val wm: WindowManager,
     var ready=false;private set
     var reason="未適用";private set
     private var failed: NavbarSpec?=null
+    private var started=0L
     fun clear() {
         val old=view;view=null;ready=false
         if(old!=null)runCatching { remove(old) }
@@ -51,19 +55,41 @@ class NavbarLayer(private val context: Context,private val wm: WindowManager,
         if(failed==spec)return false
         val old=view
         if(old!=null && old.spec.width==spec.width && old.spec.height==spec.height && old.spec.top==spec.top) {
+            if(!ready && android.os.SystemClock.elapsedRealtime()-started>5000) { reject(spec);return false }
             if(old.spec!=spec) { old.spec=spec;old.invalidate() }
             return ready
         }
         clear()
         val v=NavbarBandView(context,spec).apply { visibility=View.INVISIBLE }
         view=v;reason="配置待ち"
+        started=android.os.SystemClock.elapsedRealtime()
+        var activating=false
+        v.painted={
+            if(view===v && v.isAttachedToWindow && v.visibility==View.VISIBLE) {
+                val p=IntArray(2);v.getLocationOnScreen(p)
+                if(p[0]==0 && p[1]==spec.top && v.width==spec.width && v.height==spec.height) {
+                    ready=true;reason="描画済み（実機の可視性は要検収）";changed()
+                } else reject(spec)
+            }
+        }
         var lastPosition: Pair<Int,Int>?=null
         v.viewTreeObserver.addOnGlobalLayoutListener {
             if(view===v && v.isAttachedToWindow && v.width>0 && v.height>0) {
                 val p=IntArray(2);v.getLocationOnScreen(p)
                 if(p[0]==0 && p[1]==spec.top && v.width==spec.width && v.height==spec.height) {
                     lastPosition=null
-                    if(!ready) { ready=true;v.visibility=View.VISIBLE;reason="着色中（実機の可視性は要検収）";changed() }
+                    if(!ready && !activating) {
+                        activating=true;reason="初回描画待ち"
+                        // A root visibility change during traversal can be lost by relayout.
+                        // Force the WM visibility update on the NEXT traversal, then wait onDraw.
+                        v.post {
+                            if(view===v && v.isAttachedToWindow) {
+                                v.visibility=View.VISIBLE;v.requestLayout();v.invalidate()
+                                try { wm.updateViewLayout(v,v.layoutParams as WindowManager.LayoutParams) }
+                                catch (_: RuntimeException) { reject(spec) }
+                            }
+                        }
+                    }
                 } else if(lastPosition==(p[0] to p[1]))reject(spec)
                 else {
                     lastPosition=p[0] to p[1]

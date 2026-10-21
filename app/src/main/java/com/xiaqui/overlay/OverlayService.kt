@@ -195,7 +195,7 @@ class OverlayService : Service() {
         runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
-            navbarLayer?.view?.height ?: 0,NavbarPolicy.windowType(Build.VERSION.SDK_INT),navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,windows.size,activeType)
+            navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,windows.size,activeType)
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -262,10 +262,7 @@ class OverlayService : Service() {
         if(settings.navbarEnabled()) {
             val spec=navbarSpec(mode,mask,r,display)
             if(spec!=null && navbarLayer==null)navbarLayer=NavbarLayer(this,wm,
-                { w,h->params(w,h,Gravity.TOP or Gravity.LEFT,NavbarPolicy.windowType(Build.VERSION.SDK_INT)).apply {
-                    // The slim band extends beyond the app content frame into the nav region.
-                    flags=flags and WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN.inv()
-                } },{ v,p->add(v,p) },
+                { w,h->params(w,h,Gravity.TOP or Gravity.LEFT) },{ v,p->add(v,p) },
                 { v->windows.remove(v);wm.removeViewImmediate(v) },
                 { handler.removeCallbacks(onBarsChanged);handler.post(onBarsChanged) })
             bandOwned=navbarLayer?.apply(spec)==true

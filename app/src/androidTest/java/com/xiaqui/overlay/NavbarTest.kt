@@ -56,6 +56,23 @@ class NavbarTest {
         waitFor("band ready $color") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.navbar?.active==true && it.navbar?.color==color }==true }
         android.os.SystemClock.sleep(400)
     }
+    private fun assertBandPixel(expected: Int) {
+        var painted=false;var observed=0
+        repeat(20) {
+            if(!painted) {
+                val frame=inst.uiAutomation.takeScreenshot()!!
+                observed=frame.getPixel(frame.width/2,frame.height-OverlayService.runtime!!.bars.bottom+5)
+                painted=observed==expected;frame.recycle()
+                if(!painted)android.os.SystemClock.sleep(250)
+            }
+        }
+        if(!painted) {
+            val dump=shell("dumpsys window windows")
+            val section=dump.substringAfter("Overlay Navbar Test",dump).take(6500)
+            android.util.Log.i("NavbarPrototypeTest","band diagnostic: ${OverlayService.runtime}\n$section")
+        }
+        assertEquals("band visible after composition wait",expected,observed)
+    }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
         val colors=NavbarColors(ctx)
         assertEquals("foreign APK application theme",0xff426a88.toInt(),colors.themeColor(inst.context.packageName))
@@ -102,25 +119,12 @@ class NavbarTest {
         android.util.Log.i("NavbarPrototypeTest","mode=OFF,api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-offCpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-offStart}")
         main { settings.set("navbar_auto",false);settings.set("navbar_enabled",true) }
         active()
-        assertEquals("bounded tint layer",NavbarPolicy.windowType(android.os.Build.VERSION.SDK_INT),OverlayService.runtime!!.navbar!!.windowType)
+        assertEquals("band retains existing window type",OverlayService.runtime!!.primaryWindowType,OverlayService.runtime!!.navbar!!.windowType)
         assertEquals("clock and upper corners keep existing type",2006,OverlayService.runtime!!.primaryWindowType)
+        assertTrue("ready requires an actual onDraw",OverlayService.runtime!!.navbar!!.draws>0)
         assertEquals("two probes, one band replaces two bottom corners",6,OverlayService.runtime!!.windowCount)
         // Wait for actual composition, not only WM layout/ready. Dump geometry if still occluded.
-        var painted=false;var observed=0
-        repeat(20) {
-            if(!painted) {
-                val frame=inst.uiAutomation.takeScreenshot()!!
-                observed=frame.getPixel(frame.width/2,frame.height-OverlayService.runtime!!.bars.bottom+5)
-                painted=observed==red;frame.recycle()
-                if(!painted)android.os.SystemClock.sleep(250)
-            }
-        }
-        if(!painted) {
-            val dump=shell("dumpsys window windows")
-            val section=dump.substringAfter("Overlay Navbar Test",dump).take(6500)
-            android.util.Log.i("NavbarPrototypeTest","band diagnostic: ${OverlayService.runtime}\n$section")
-        }
-        assertEquals("band visible after composition wait",red,observed)
+        assertBandPixel(red)
         // These are emulator composition pixels, NOT proof of Xperia SystemUI visibility.
         val shot=inst.uiAutomation.takeScreenshot()!!
         val nav=OverlayService.runtime!!.bars.bottom
@@ -150,10 +154,12 @@ class NavbarTest {
         main { settings.setNavbarColor(pkg,blue) }
         ctx.startActivity(settingsIntent)
         waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.color==blue }==true }
+        assertBandPixel(blue)
         main { settings.setNavbarColor(pkg,null) }
         waitFor("unset external app clears tint") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==false }==true }
         main { settings.set("navbar_auto",true) }
         waitFor("external APK automatic estimate applied") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.source in listOf("テーマ推定","アイコン推定") }==true }
+        assertBandPixel(OverlayService.runtime!!.navbar!!.color!!)
         val cachedLoads=OverlayService.runtime!!.navbar!!.colorLoads
         android.os.SystemClock.sleep(1600)
         assertEquals("poll reuses cached automatic estimate",cachedLoads,OverlayService.runtime!!.navbar!!.colorLoads)

@@ -25,6 +25,13 @@ class Issue4Test {
         }
         fail("$message: ${OverlayService.runtime}")
     }
+    private fun blackPixel(message: String,x: Int,y: Int) {
+        waitFor(message) {
+            val image=inst.uiAutomation.takeScreenshot()!!
+            val black=image.getPixel(x,y) and 0xffffff==0
+            image.recycle();black
+        }
+    }
     @Before fun before() {
         main { ctx.stopService(Intent(ctx,OverlayService::class.java)) }
         waitFor("previous service stopped") { !shell("dumpsys activity services ${ctx.packageName}").contains("ServiceRecord{") }
@@ -96,14 +103,12 @@ class Issue4Test {
                 val x=shot.width-1-b.right
                 val y=shot.height-1-b.bottom
                 assertTrue("navigation bar offset is nonzero",b.bottom+b.left+b.right>0)
-                assertEquals("lower corner painted inside nav, bars=$b",0,shot.getPixel(x,y) and 0xFFFFFF)
                 shot.recycle()
+                blackPixel("lower corner painted inside nav, bars=$b",x,y)
             }
             // Inspect real pixels at the moved top-left corner; policy state alone cannot pass this test.
             if(mode!=Policy.NONE && (mode==Policy.TOP_INSIDE || mode==Policy.BOTH_INSIDE)) {
-                val shot=inst.uiAutomation.takeScreenshot()!!
-                assertEquals("top corner painted below status bar",0,shot.getPixel(0,b.top+1) and 0xFFFFFF)
-                shot.recycle()
+                blackPixel("top corner painted below status bar",0,b.top+1)
             }
         }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
@@ -156,3 +161,4 @@ class Issue4Test {
         }
     }
 }
+
