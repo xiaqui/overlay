@@ -97,6 +97,9 @@ class NavbarTest {
         }
         waitFor("OFF retains original five windows without probes") { OverlayService.runtime?.let { it.navbar==null && it.windowCount==5 }==true }
         assertFalse(settings.needsBars());assertFalse(settings.hasRules())
+        val offCpu=android.os.Process.getElapsedCpuTime();val offStart=android.os.SystemClock.elapsedRealtime()
+        android.os.SystemClock.sleep(2500)
+        android.util.Log.i("NavbarPrototypeTest","mode=OFF,api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-offCpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-offStart}")
         main { settings.set("navbar_auto",false);settings.set("navbar_enabled",true) }
         active()
         assertEquals("same existing legacy window type",2006,OverlayService.runtime!!.navbar!!.windowType)
@@ -170,6 +173,6 @@ class NavbarTest {
         val cpu=android.os.Process.getElapsedCpuTime();val start=android.os.SystemClock.elapsedRealtime()
         android.os.SystemClock.sleep(2500)
         assertEquals("fixed color never loads APK resources",loads,OverlayService.runtime!!.navbar!!.colorLoads)
-        android.util.Log.i("NavbarPrototypeTest","api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-cpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-start}")
+        android.util.Log.i("NavbarPrototypeTest","mode=ON,api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-cpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-start}")
     }
 }
