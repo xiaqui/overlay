@@ -2,7 +2,9 @@ package com.xiaqui.overlay
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
@@ -18,6 +20,7 @@ class StatusbarBandView(context: Context): View(context) {
     init { importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO }
     override fun onDraw(canvas: Canvas) {
         draws++
+        canvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR)
         spec?.let { paint.color=it.color.color;canvas.drawRect(0f,0f,width.toFloat(),height.toFloat(),paint) }
         painted?.let { callback->painted=null;post { callback() } }
     }

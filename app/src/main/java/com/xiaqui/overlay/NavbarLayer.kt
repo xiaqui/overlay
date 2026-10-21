@@ -18,6 +18,7 @@ class NavbarBandView(context: Context,var spec: NavbarSpec): View(context) {
     init { importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO }
     override fun onDraw(canvas: Canvas) {
         draws++
+        canvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR)
         if(spec.tintVisible) {
             paint.color=spec.color.color
             canvas.drawRect(0f,(height-spec.navHeight).toFloat(),width.toFloat(),height.toFloat(),paint)
