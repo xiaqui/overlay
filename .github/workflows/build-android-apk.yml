@@ -1,4 +1,4 @@
-name: Overlay checks and signed Release
+name: Overlay Navbar prototype checks and signed Release
 on:
   workflow_dispatch:
   push:
@@ -136,32 +136,37 @@ jobs:
         run: |
           set -euo pipefail
           mkdir delivery
-          cp app/build/outputs/apk/release/app-release.apk delivery/Overlay.apk
+          cp app/build/outputs/apk/release/app-release.apk delivery/Overlay-Navbar-Test.apk
           tools="$ANDROID_HOME/build-tools/35.0.0"
-          "$tools/apksigner" verify --verbose --print-certs delivery/Overlay.apk > delivery/APK-VERIFICATION.txt
-          "$tools/aapt" dump badging delivery/Overlay.apk > "$RUNNER_TEMP/badging.txt"
+          "$tools/apksigner" verify --verbose --print-certs delivery/Overlay-Navbar-Test.apk > delivery/APK-VERIFICATION.txt
+          "$tools/aapt" dump badging delivery/Overlay-Navbar-Test.apk > "$RUNNER_TEMP/badging.txt"
           grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/badging.txt"
+          grep -q "versionCode='3'" "$RUNNER_TEMP/badging.txt"
+          grep -q "versionName='0.3.0-navbar-test'" "$RUNNER_TEMP/badging.txt"
           grep -q "sdkVersion:'23'" "$RUNNER_TEMP/badging.txt"
           grep -q "targetSdkVersion:'25'" "$RUNNER_TEMP/badging.txt"
           if grep -q 'application-debuggable' "$RUNNER_TEMP/badging.txt"; then exit 1; fi
-          if "$tools/aapt" dump permissions delivery/Overlay.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
+          if "$tools/aapt" dump permissions delivery/Overlay-Navbar-Test.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
           keytool -exportcert -keystore "$RUNNER_TEMP/overlay.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > "$RUNNER_TEMP/cert.der"
           expected=$(sha256sum "$RUNNER_TEMP/cert.der" | cut -d ' ' -f1)
           actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' delivery/APK-VERIFICATION.txt)
           test "$expected" = "$actual"
           # Verify update compatibility with the actual first shipped APK, not only key names.
           mkdir "$RUNNER_TEMP/baseline"
-          gh release download overlay-0.1.0-b2ed53a8 --pattern Overlay.apk --dir "$RUNNER_TEMP/baseline"
-          echo "d53d2c9d1d9d0f0780410ace4e2353d5921d990d8908c4d630d8ec3326348ce1  $RUNNER_TEMP/baseline/Overlay.apk" | sha256sum -c -
+          gh release download overlay-0.2.0-2f942bba --pattern Overlay.apk --dir "$RUNNER_TEMP/baseline"
+          echo "a5fbf73e08e5e985a6b11c12fc81078d7f52f134cd3633b93c9a3892b472fe1b  $RUNNER_TEMP/baseline/Overlay.apk" | sha256sum -c -
           "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/baseline/Overlay.apk" > "$RUNNER_TEMP/baseline-cert.txt"
           baseline=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/baseline-cert.txt")
           test "$actual" = "$baseline"
           printf '%s\n' "$GITHUB_SHA" > delivery/SOURCE_SHA.txt
-          (cd delivery && sha256sum Overlay.apk > SHA256SUMS)
-          tag="overlay-0.2.0-${GITHUB_SHA:0:8}"
+          (cd delivery && sha256sum Overlay-Navbar-Test.apk > SHA256SUMS)
+          tag="overlay-navbar-test-${GITHUB_SHA:0:8}"
           cat > delivery/RELEASE_NOTES.md <<NOTES
-          Android 6–10 / Xperia priority. Original implementation; no reference APK assets.
-          Device acceptance is pending: overlay layer, shadow, touch passthrough, sleep/boot, per-app corners.
+          Navbar technical prototype / versionCode 3 / upgrades Overlay 0.2.0 with the same key.
+          New feature is OFF by default. Portrait + 3-button navigation only.
+          Fixed app color > optional theme estimate > icon representative > no tint. No screen capture.
+          Xperia visibility, SystemUI contrast, IME and long-running power acceptance are pending.
+          Existing 0.2.0 Release is unchanged. See docs/NAVBAR_PROTOTYPE_JA.md.
           Source: $GITHUB_SHA
           Workflow: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           $(cat delivery/SHA256SUMS)
@@ -174,9 +179,9 @@ jobs:
               gh release download "$tag" --pattern '*' --dir "$RUNNER_TEMP/published"
               cmp delivery/SOURCE_SHA.txt "$RUNNER_TEMP/published/SOURCE_SHA.txt"
               (cd "$RUNNER_TEMP/published" && sha256sum -c SHA256SUMS)
-              "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/published/Overlay.apk" > "$RUNNER_TEMP/published-cert.txt"
+              "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/published/Overlay-Navbar-Test.apk" > "$RUNNER_TEMP/published-cert.txt"
               test "$expected" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/published-cert.txt")"
-              "$tools/aapt" dump badging "$RUNNER_TEMP/published/Overlay.apk" > "$RUNNER_TEMP/published-badging.txt"
+              "$tools/aapt" dump badging "$RUNNER_TEMP/published/Overlay-Navbar-Test.apk" > "$RUNNER_TEMP/published-badging.txt"
               grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/published-badging.txt"
               grep -q "sdkVersion:'23'" "$RUNNER_TEMP/published-badging.txt"
               cat "$RUNNER_TEMP/published/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
@@ -184,17 +189,18 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay 0.2.0 (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay Navbar Test (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
           fi
-          gh release upload "$tag" delivery/Overlay.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
+          gh release upload "$tag" delivery/Overlay-Navbar-Test.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
           mkdir "$RUNNER_TEMP/retrieved"
-          gh release download "$tag" --pattern Overlay.apk --dir "$RUNNER_TEMP/retrieved"
-          cmp delivery/Overlay.apk "$RUNNER_TEMP/retrieved/Overlay.apk"
+          gh release download "$tag" --pattern Overlay-Navbar-Test.apk --dir "$RUNNER_TEMP/retrieved"
+          cmp delivery/Overlay-Navbar-Test.apk "$RUNNER_TEMP/retrieved/Overlay-Navbar-Test.apk"
           (cd "$RUNNER_TEMP/retrieved" && sha256sum -c "$GITHUB_WORKSPACE/delivery/SHA256SUMS")
-          "$tools/apksigner" verify "$RUNNER_TEMP/retrieved/Overlay.apk"
+          "$tools/apksigner" verify "$RUNNER_TEMP/retrieved/Overlay-Navbar-Test.apk"
           gh release edit "$tag" --draft=false --prerelease
           cat delivery/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
           echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/overlay.jks" "$RUNNER_TEMP/cert.der"
+

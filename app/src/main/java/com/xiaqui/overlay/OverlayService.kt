@@ -30,6 +30,19 @@ class OverlayService : Service() {
     private var receiverRegistered=false
     private var activeType=2006
     private val cornerWindows=mutableListOf<View>()
+    private var navbarLayer: NavbarLayer?=null
+    private var navbarColors: NavbarColors?=null
+    private var navbarKey: String?=null
+    private var navbarCandidate: NavbarColor?=null
+    private var navbarReason="未適用"
+    private var lastBandOwned=false
+    private var packagesRegistered=false
+    private val packageReceiver=object: BroadcastReceiver() {
+        override fun onReceive(context: Context,intent: Intent) {
+            navbarColors?.clear();navbarKey=null
+            handler.removeCallbacks(onBarsChanged);if(screenOn)handler.post(onBarsChanged)
+        }
+    }
     private val minute=object: Runnable {
         override fun run() {
             if (!screenOn) return
@@ -101,6 +114,7 @@ class OverlayService : Service() {
     }
     private fun clearWindows() {
         handler.removeCallbacks(minute);handler.removeCallbacks(poll);handler.removeCallbacks(onBarsChanged)
+        navbarLayer?.clear();navbarLayer=null;lastBandOwned=false;navbarKey=null;navbarCandidate=null
         observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
         windows.clear();cornerWindows.clear();status=null;lastMask=-1;runtime=null
@@ -117,6 +131,7 @@ class OverlayService : Service() {
     private fun add(view: View,p: WindowManager.LayoutParams) { wm.addView(view,p);windows.add(view) }
     private fun rebuild() {
         if(!::settings.isInitialized) return
+        syncNavbarPackages()
         clearWindows()
         if(!settings.bool("enabled")) { stopSelf();return }
         if(!SystemSettings.canDrawOverlays(this)) { fail("重ねて表示を許可してください");return }
@@ -179,7 +194,42 @@ class OverlayService : Service() {
     private fun publishRuntime() {
         runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
-        })
+        },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
+            navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0) else null,windows.size)
+    }
+    private fun syncNavbarPackages() {
+        if(settings.navbarEnabled() && !packagesRegistered) {
+            registerReceiver(packageReceiver,IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED);addAction(Intent.ACTION_PACKAGE_REPLACED);addAction(Intent.ACTION_PACKAGE_REMOVED);addDataScheme("package")
+            });packagesRegistered=true
+        } else if(!settings.navbarEnabled()) {
+            if(packagesRegistered) { unregisterReceiver(packageReceiver);packagesRegistered=false }
+            navbarColors=null
+        }
+    }
+    private fun navbarSpec(mode: Int,mask: Int,r: Int,display: android.graphics.Point): NavbarSpec? {
+        val portrait=resources.configuration.orientation==Configuration.ORIENTATION_PORTRAIT && display.y>display.x
+        val navMode=resources.getIdentifier("config_navBarInteractionMode","integer","android")
+        val threeButtons=navMode==0 || runCatching { resources.getInteger(navMode)==0 }.getOrDefault(false)
+        if(!NavbarPolicy.eligible(settings.navbarEnabled(),portrait,threeButtons,bars) || bars.bottom>display.y/3) {
+            navbarReason="横画面・ナビ非表示・方式対象外・判定不能のため従来表示";return null
+        }
+        val pkg=foreground
+        if(pkg==null || !usageAllowed(this)) { navbarReason="使用状況アクセス/前面アプリを確認してください";return null }
+        val fixed=settings.navbarColor(pkg);val automatic=settings.bool("navbar_auto")
+        val key="$pkg:$fixed:$automatic"
+        if(key!=navbarKey) {
+            navbarCandidate=if(fixed==null && !automatic)null else {
+                val colors=navbarColors ?: NavbarColors(this).also { navbarColors=it }
+                colors.resolve(pkg,automatic,fixed)
+            }
+            navbarKey=key
+        }
+        val color=navbarCandidate ?: run { navbarReason="固定色・推定色なし（従来表示）";return null }
+        val bottom=mask and 2!=0 && r>0
+        val spec=NavbarSpec(display.x,display.y,bars.bottom,r,bottom,mode==Policy.BOTTOM_INSIDE || mode==Policy.BOTH_INSIDE,color)
+        if(spec.height>display.y)return null
+        return spec
     }
     private fun updateForeground() {
         if(!settings.hasRules() || !usageAllowed(this)) { foreground=null;return }
@@ -197,12 +247,23 @@ class OverlayService : Service() {
         val mode=foreground?.let { settings.rule(it) } ?: Policy.NORMAL
         val mask=Policy.cornerMask(settings.defaultMask(),mode)
         val offsets=(0..3).map { Policy.cornerOffset(it,mode,bars) }
-        if(mask==lastMask && offsets==lastCornerLayout) { publishRuntime();return }
-        cornerWindows.forEach { runCatching { wm.removeViewImmediate(it) };windows.remove(it) };cornerWindows.clear()
+        if(!settings.navbarEnabled() && !lastBandOwned && mask==lastMask && offsets==lastCornerLayout) { publishRuntime();return }
         val r=(settings.number("radius",18)*resources.displayMetrics.density).toInt()
         val display=android.graphics.Point();wm.defaultDisplay.getRealSize(display)
+        var bandOwned=false
+        if(settings.navbarEnabled()) {
+            val spec=navbarSpec(mode,mask,r,display)
+            if(spec!=null && navbarLayer==null)navbarLayer=NavbarLayer(this,wm,
+                { w,h->params(w,h,Gravity.TOP or Gravity.LEFT) },{ v,p->add(v,p) },
+                { v->windows.remove(v);wm.removeViewImmediate(v) },
+                { handler.removeCallbacks(onBarsChanged);handler.post(onBarsChanged) })
+            bandOwned=navbarLayer?.apply(spec)==true
+        }
+        if(mask==lastMask && offsets==lastCornerLayout && bandOwned==lastBandOwned) { publishRuntime();return }
+        cornerWindows.forEach { runCatching { wm.removeViewImmediate(it) };windows.remove(it) };cornerWindows.clear()
         if(r>0)for(c in 0..3) {
             if((mask and (if(c<2)1 else 2))==0)continue
+            if(c>=2 && bandOwned)continue
             // Absolute screen coordinates avoid BOTTOM/RIGHT gravity using a nav-clipped frame.
             val x=if(c%2==0)offsets[c].x else display.x-r-offsets[c].x
             val y=if(c<2)offsets[c].y else display.y-r-offsets[c].y
@@ -227,16 +288,18 @@ class OverlayService : Service() {
             }
             add(v,params(r,r,Gravity.TOP or Gravity.LEFT).apply { this.x=x;this.y=y });cornerWindows.add(v)
         }
-        lastMask=mask;lastCornerLayout=offsets;publishRuntime()
+        lastMask=mask;lastCornerLayout=offsets;lastBandOwned=bandOwned;publishRuntime()
     }
-    override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig);lastQuery=0;rebuild() }
+    override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig);navbarColors?.clear();lastQuery=0;rebuild() }
     override fun onDestroy() {
         if(::settings.isInitialized)settings.prefs.unregisterOnSharedPreferenceChangeListener(listener)
         if(receiverRegistered)unregisterReceiver(receiver)
+        if(packagesRegistered)unregisterReceiver(packageReceiver)
         clearWindows();stopForeground(true);super.onDestroy()
     }
     override fun onBind(intent: Intent?) : IBinder?=null
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>)
+    data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int)
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val windowCount: Int=0)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {
@@ -257,3 +320,4 @@ class BootReceiver: BroadcastReceiver() {
         }
     }
 }
+

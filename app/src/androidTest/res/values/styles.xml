@@ -1,0 +1,5 @@
+<resources>
+    <style name="NavbarFixtureTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#426A88</item>
+    </style>
+</resources>
