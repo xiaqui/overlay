@@ -122,9 +122,11 @@ class NavbarTest {
             assertEquals("Recents stops fill",Color.TRANSPARENT,recentsBitmap.getPixel(80,recentsSpec.height-3))
             assertEquals("Recents preserves lower corner",Color.BLACK,recentsBitmap.getPixel(0,recentsSpec.height-1))
             recentsBitmap.recycle()
-            val statusView=StatusbarBandView(ctx).apply { spec=StatusbarSpec(160,24,NavbarColor(red,"test"));layout(0,0,160,24) }
+            val statusView=StatusbarBandView(ctx).apply { spec=StatusbarSpec(160,24,NavbarColor(red,"test"),18,true);layout(0,0,160,24) }
             val statusBitmap=Bitmap.createBitmap(160,24,Bitmap.Config.ARGB_8888)
-            statusView.draw(Canvas(statusBitmap));assertEquals("status fill",red,statusBitmap.getPixel(80,12));statusBitmap.recycle()
+            statusView.draw(Canvas(statusBitmap));assertEquals("status fill",red,statusBitmap.getPixel(80,12))
+            assertTrue("status paints physical upper masks after fill",(0 until 18).any { y->(0 until 18).any { x->statusBitmap.getPixel(x,y)==Color.BLACK } })
+            statusBitmap.recycle()
             val layer=NavbarLayer(ctx,ctx.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager,
                 { w,h->WindowManager.LayoutParams(w,h,2006,24,-3).apply { gravity=Gravity.TOP or Gravity.LEFT } },
                 { _,_->throw WindowManager.BadTokenException("test rejection") },{}, {})

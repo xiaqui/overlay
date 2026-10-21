@@ -264,12 +264,13 @@ class OverlayService : Service() {
         if(spec.top<=upperExtent) { navbarReason="上側表示領域との重なりを避けて従来表示";return null }
         return spec
     }
-    private fun statusbarSpec(display: android.graphics.Point,tint: TintResolution): StatusbarSpec? {
+    private fun statusbarSpec(display: android.graphics.Point,tint: TintResolution,mode: Int,mask: Int,r: Int): StatusbarSpec? {
         if(!settings.unifiedBars() || tint.suppressed)return null
         val color=tint.color ?: return null
         val portrait=resources.configuration.orientation==Configuration.ORIENTATION_PORTRAIT && display.y>display.x
         if(!portrait || !bars.known || bars.top<=0 || bars.top>display.y/3 || bars.left>0 || bars.right>0)return null
-        return StatusbarSpec(display.x,bars.top,color)
+        val topAtPhysicalEdge=mode!=Policy.TOP_INSIDE && mode!=Policy.BOTH_INSIDE
+        return StatusbarSpec(display.x,bars.top,color,r,mask and 1!=0 && topAtPhysicalEdge)
     }
     private fun updateForeground() {
         if(!settings.hasRules() || !usageAllowed(this)) {
@@ -301,7 +302,7 @@ class OverlayService : Service() {
         val r=(settings.number("radius",18)*resources.displayMetrics.density).toInt()
         val display=android.graphics.Point();wm.defaultDisplay.getRealSize(display)
         val tint=if(settings.navbarEnabled())tintResolution() else TintResolution(null,false)
-        statusbarLayer?.apply(statusbarSpec(display,tint))
+        statusbarLayer?.apply(statusbarSpec(display,tint,mode,mask,r))
         var bandOwned=false
         if(settings.navbarEnabled()) {
             val spec=navbarSpec(mode,mask,r,display,tint)

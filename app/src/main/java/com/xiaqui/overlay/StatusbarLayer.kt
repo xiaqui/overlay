@@ -4,12 +4,14 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
+import android.graphics.RectF
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
 
-data class StatusbarSpec(val width: Int,val height: Int,val color: NavbarColor)
+data class StatusbarSpec(val width: Int,val height: Int,val color: NavbarColor,val radius: Int=0,val topCorners: Boolean=false)
 
 /** A non-touchable background band. It is registered before status content and upper corners. */
 class StatusbarBandView(context: Context): View(context) {
@@ -21,7 +23,19 @@ class StatusbarBandView(context: Context): View(context) {
     override fun onDraw(canvas: Canvas) {
         draws++
         canvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR)
-        spec?.let { paint.color=it.color.color;canvas.drawRect(0f,0f,width.toFloat(),height.toFloat(),paint) }
+        spec?.let {
+            paint.color=it.color.color;canvas.drawRect(0f,0f,width.toFloat(),height.toFloat(),paint)
+            if(it.topCorners && it.radius>0) {
+                paint.color=Color.BLACK
+                val r=it.radius.toFloat()
+                for(right in listOf(false,true)) {
+                    canvas.save()
+                    if(right) { canvas.translate(width.toFloat(),0f);canvas.scale(-1f,1f) }
+                    val path=Path().apply { moveTo(0f,0f);lineTo(r,0f);arcTo(RectF(0f,0f,2*r,2*r),270f,-90f);close() }
+                    canvas.drawPath(path,paint);canvas.restore()
+                }
+            }
+        }
         painted?.let { callback->painted=null;post { callback() } }
     }
 }
