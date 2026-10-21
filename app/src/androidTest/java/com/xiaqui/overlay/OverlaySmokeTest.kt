@@ -41,6 +41,7 @@ class OverlaySmokeTest {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("dark",dark))
                 assertNotNull("Preview reached foreground",preview)
                 instrumentation.waitForIdleSync()
+                android.os.SystemClock.sleep(1000) // Preserve original overlay/font settling time.
                 val background=if(dark)0 else 0xFFFFFF
                 // After real navigation-button tests, SystemUI may retain a transient bar for
                 // longer than 1s. Require actual hidden-bar pixels, not an arbitrary sleep.
