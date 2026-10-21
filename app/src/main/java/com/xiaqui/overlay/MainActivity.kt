@@ -36,7 +36,7 @@ class MainActivity: Activity() {
     private fun showSettings() {
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
         setContentView(ScrollView(this).apply { addView(content) })
-        content.addView(text("Overlay",26f))
+        content.addView(text("Overlay — Navbar技術検証版",26f))
         content.addView(text("Android 6〜10・Xperia向け。時計と電池は右上、背景透明・タッチ透過。"))
         val allowed=SystemSettings.canDrawOverlays(this)
         content.addView(text(if(allowed)"重ねて表示：許可済み" else "最初に「他のアプリの上に重ねて表示」を許可してください。"))
@@ -68,6 +68,13 @@ class MainActivity: Activity() {
         button("アプリ別の角丸配置") { chooseApp() }
         button("全画面判定のアプリ別例外") { chooseApp(true) }
         content.addView(text("例外は「全画面のときだけ」がONのときに適用し、使用状況へのアクセスが必要です。通常の自動判定・常時表示はそのまま使えます。"))
+        content.addView(text("ナビバー着色（技術検証）",20f))
+        toggle("ナビバー着色を試す（初期OFF）","navbar_enabled")
+        toggle("テーマ・アイコンから自動色を推定","navbar_auto")
+        button("アプリ別の固定色") { chooseNavbarApp() }
+        content.addView(text("固定色 → 自動テーマ色 → アイコン代表色の順です。自動色OFFで未設定のアプリは着色しません。使用状況へのアクセスが必要です。縦画面・3ボタンでお試しください。横画面・バー非表示・判定不能時は従来表示へ戻します。ジェスチャー・分割画面・IME・OEM固有バーは保証外です。Navbar Apps等の着色アプリは停止してください。"))
+        content.addView(text("自動色は画面の採色ではなく推定で、ボタンの視認性のため明るさを抑えます。固定色は指定通りですが、OSのボタン色は変更できません。明るい色でボタンが見づらい場合は暗い色に変更するか着色をOFFにしてください。"))
+        if(settings.navbarEnabled())content.addView(text(OverlayService.runtime?.navbar?.let { "${it.reason} / ${it.source ?: "候補なし"}" } ?: "表示開始後に状態を確認できます"))
         toggle("互換表示方式（バーより背面）","modern")
         content.addView(text("標準方式はAndroid 6〜10向けの旧レイヤーです。表示できない機種は互換方式を試してください。互換方式ではシステムバーの上に角丸を描けません。Android 11以降は保証外です。"))
         content.addView(text("外観合わせ",20f))
@@ -88,6 +95,28 @@ class MainActivity: Activity() {
             AlertDialog.Builder(this).setTitle(apps[i].loadLabel(pm)).setSingleChoiceItems(labels,selection) { dialog,n ->
                 if(display)settings.setDisplayRule(pkg,n) else settings.setRule(pkg,n);dialog.dismiss()
             }.show()
+        }.show()
+    }
+    private fun chooseNavbarApp() {
+        val pm=packageManager
+        val apps=pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0)
+            .distinctBy { it.activityInfo.packageName }.sortedBy { it.loadLabel(pm).toString() }
+        AlertDialog.Builder(this).setTitle("ナビバーの固定色").setItems(apps.map { it.loadLabel(pm).toString() }.toTypedArray()) { _,i ->
+            val pkg=apps[i].activityInfo.packageName
+            val entry=EditText(this).apply {
+                setSingleLine();hint="#RRGGBB（例 #304050）"
+                setText(settings.navbarColor(pkg)?.let { "#%06X".format(it and 0xffffff) } ?: "")
+            }
+            val dialog=AlertDialog.Builder(this).setTitle(apps[i].loadLabel(pm)).setView(entry)
+                .setPositiveButton("保存",null).setNeutralButton("固定色を解除") { _,_->settings.setNavbarColor(pkg,null) }.setNegativeButton("戻る",null).create()
+            dialog.setOnShowListener {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val value=entry.text.toString().trim()
+                    if(!Regex("#[0-9a-fA-F]{6}").matches(value))entry.error="#RRGGBB形式で入力してください"
+                    else { settings.setNavbarColor(pkg,android.graphics.Color.parseColor(value));dialog.dismiss() }
+                }
+            }
+            dialog.show()
         }.show()
     }
 }
@@ -118,3 +147,4 @@ class PreviewActivity: Activity() {
         })
     }
 }
+

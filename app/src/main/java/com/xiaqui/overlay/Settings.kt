@@ -25,7 +25,13 @@ class Settings(context: Context) {
     fun setDisplayRule(pkg: String,value: Int) {
         prefs.edit().apply { if(value==0)remove("display:$pkg") else putInt("display:$pkg",value.coerceIn(1,2)) }.apply()
     }
-    fun hasRules()=prefs.all.keys.any { it.startsWith("corner2:") || it.startsWith("display:") }
-    fun needsBars()=bool("fullscreen") || prefs.all.any { (k,v)->k.startsWith("corner2:") && v is Int && v in Policy.TOP_INSIDE..Policy.BOTH_INSIDE }
+    fun navbarEnabled()=bool("navbar_enabled")
+    fun navbarColor(pkg: String): Int?=if(prefs.contains("navbar:$pkg"))number("navbar:$pkg",0) else null
+    fun setNavbarColor(pkg: String,color: Int?) {
+        prefs.edit().apply { if(color==null)remove("navbar:$pkg") else putInt("navbar:$pkg",color or (255 shl 24)) }.apply()
+    }
+    fun hasRules()=navbarEnabled() || prefs.all.keys.any { it.startsWith("corner2:") || it.startsWith("display:") }
+    fun needsBars()=navbarEnabled() || bool("fullscreen") || prefs.all.any { (k,v)->k.startsWith("corner2:") && v is Int && v in Policy.TOP_INSIDE..Policy.BOTH_INSIDE }
     fun defaultMask()=(if(bool("top"))1 else 0) or (if(bool("bottom"))2 else 0)
 }
+

@@ -10,6 +10,8 @@ trap cleanup_crashpad EXIT
 # Dismiss the OS first-use immersive tutorial, which otherwise consumes the touch-through tap.
 adb shell settings put secure immersive_mode_confirmations confirmed
 if ! gradle connectedDebugAndroidTest --no-daemon; then
-  adb logcat -d -s OverlayBarsTest:I TestRunner:I AndroidRuntime:E '*:S' || true
+  adb logcat -d -s OverlayBarsTest:I NavbarPrototypeTest:I TestRunner:I AndroidRuntime:E '*:S' || true
   exit 1
 fi
+adb logcat -d -s NavbarPrototypeTest:I '*:S' || true
+

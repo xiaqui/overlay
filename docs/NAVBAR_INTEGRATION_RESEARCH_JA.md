@@ -1,5 +1,12 @@
 # ナビゲーションバー背景色の軽量統合調査
 
+> 後続技術検証の更新（2026-10-21）: 本調査時の「着色にも既存activeTypeを共有」という提案は、
+> 全5OSの配置成功・実画素着色失敗を受けて異なる種別/flagsも比較したが、診断の結果は
+> 初期不可視のままSurfaceがない実装不具合だった。種別による着色不可能の証拠とはしない。
+> 後続試作では可視化と実描画後の所有移行を修正し、元のactiveType共有へ戻して再評価する。
+> 実測結果と正式統合判断は [NAVBAR_PROTOTYPE_JA.md](NAVBAR_PROTOTYPE_JA.md) を参照。
+> 以下は調査段階の記録であり、当時の未実装・提案という記述を保持している。
+
 調査日: 2026-10-21（日本時間）
 対象: xiaqui/overlay / Overlay 0.2.0 / Android 6〜10（API23〜29）
 確認main: `badf1dfaff99dac3644997ac0b0a840f8b0308b9`。配布APKのsourceは `2f942bbaebadc7bee7666c0c9beb9ef1bc88280c`。
@@ -202,3 +209,4 @@ UsageStatsが分かるのは色ではなく前面パッケージ。自動「ア�
 - [S10: AOSP Android10 WindowManagerPolicy](https://github.com/aosp-mirror/platform_frameworks_base/blob/android10-release/services/core/java/com/android/server/policy/WindowManagerPolicy.java)
 - [S11: ActivityManager（task取得制限）](https://developer.android.com/reference/android/app/ActivityManager#getRunningTasks(int))、[UsageStatsManager](https://developer.android.com/reference/android/app/usage/UsageStatsManager)、[PackageManager.getResourcesForApplication](https://developer.android.com/reference/android/content/pm/PackageManager#getResourcesForApplication(java.lang.String))
 - [S12: MediaProjection](https://developer.android.com/media/grow/media-projection)。API21からの画面取得方式を参照。新OS限定の同意/FGS規則を6〜10へ遡及して要求するものではない。
+
