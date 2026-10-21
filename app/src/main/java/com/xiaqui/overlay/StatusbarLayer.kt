@@ -15,7 +15,7 @@ data class StatusbarSpec(val width: Int,val height: Int,val color: NavbarColor,v
 
 /** A non-touchable background band. It is registered before status content and upper corners. */
 class StatusbarBandView(context: Context): View(context) {
-    private val paint=Paint()
+    private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     var spec: StatusbarSpec?=null
     var draws=0;private set
     var painted: (() -> Unit)?=null

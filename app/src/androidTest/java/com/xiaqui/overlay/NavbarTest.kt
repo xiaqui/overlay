@@ -142,6 +142,7 @@ class NavbarTest {
         launch()
         main {
             settings.set("top",true);settings.set("bottom",true);settings.set("radius",18)
+            settings.set("color",2) // Overlay固有の濃灰で、標準status iconと分けて実画素を確認する。
             settings.setNavbarColor(ctx.packageName,red);settings.set("navbar_auto",true)
             settings.set("enabled",true);OverlayService.start(ctx)
         }
@@ -171,8 +172,12 @@ class NavbarTest {
             val c=unifiedShot.getPixel(x,maxOf(1,OverlayService.runtime!!.bars.top/2))
             Color.red(c)>190 && Color.green(c)>190 && Color.blue(c)>190
         }
+        val overlayStatusPixels=(unifiedShot.width/2 until unifiedShot.width).sumOf { x->
+            (0 until OverlayService.runtime!!.bars.top).count { y->unifiedShot.getPixel(x,y)==Color.DKGRAY }
+        }
         unifiedShot.recycle()
         assertTrue("native/overlay status symbols remain above tint",hasLightStatusContent)
+        assertTrue("Overlay clock/battery remain above tint as distinct dark-gray pixels",overlayStatusPixels>4)
         // These are emulator composition pixels, NOT proof of Xperia SystemUI visibility.
         val shot=inst.uiAutomation.takeScreenshot()!!
         val nav=OverlayService.runtime!!.bars.bottom

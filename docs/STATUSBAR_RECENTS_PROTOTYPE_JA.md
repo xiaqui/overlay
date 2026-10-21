@@ -57,7 +57,7 @@ SystemUI packageだけ、class欠落、部分文字列、古い推測では停�
 ## 自動テストとレビュー
 
 - JVM: RecentsのAOSP完全一致、設定component、Quickstep/HOME限定fallback、SystemUIの別class・null class・無効時の非抑止。
-- instrumentation: 既存時計・電池・全画面・角丸5状態・設定移行を維持。上下同一RGB、上隅黒、status内容画素、色なしでも下隅黒、上帯失敗の局所化、全画面解除後の復元、設定master OFFを検査する。
+- instrumentation: 既存時計・電池・全画面・角丸5状態・設定移行を維持。上下同一RGB、上隅黒、標準色と分けたOverlay固有の濃灰時計・電池画素、色なしでも下隅黒、上帯失敗の局所化、全画面解除後の復元、設定master OFFを検査する。
 - API23/24/26/28/29で同じsuiteを実行する。エミュレータの画素成功はXperia実機成功とは扱わない。Recents componentがUsageEventsに現れないイメージでは、非検出を記録し、純粋policy testを代替証拠として区別する。
 - 独立レビューでは、Recents時に角丸を消さないこと、下隅所有の連続性、上帯失敗の局所化、統一OFF時のNavbar色互換、SystemUI package-only誤検出禁止をP1/P2条件とした。
 
