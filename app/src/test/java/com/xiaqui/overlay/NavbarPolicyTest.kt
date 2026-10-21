@@ -7,6 +7,8 @@ class NavbarPolicyTest {
     @Test fun onlyKnownPortraitVisibleThreeButtonBarIsEligible() {
         val b=BarState(true,bottom=48)
         assertTrue(NavbarPolicy.eligible(true,true,true,b))
+        for(sdk in listOf(23,24,25))assertEquals(2003,NavbarPolicy.windowType(sdk))
+        for(sdk in listOf(26,27,28,29))assertEquals(2038,NavbarPolicy.windowType(sdk))
         assertFalse(NavbarPolicy.eligible(false,true,true,b))
         assertFalse(NavbarPolicy.eligible(true,false,true,b))
         assertFalse(NavbarPolicy.eligible(true,true,false,b))

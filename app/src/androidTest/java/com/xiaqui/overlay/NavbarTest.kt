@@ -102,7 +102,8 @@ class NavbarTest {
         android.util.Log.i("NavbarPrototypeTest","mode=OFF,api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-offCpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-offStart}")
         main { settings.set("navbar_auto",false);settings.set("navbar_enabled",true) }
         active()
-        assertEquals("same existing legacy window type",2006,OverlayService.runtime!!.navbar!!.windowType)
+        assertEquals("bounded tint layer",NavbarPolicy.windowType(android.os.Build.VERSION.SDK_INT),OverlayService.runtime!!.navbar!!.windowType)
+        assertEquals("clock and upper corners keep existing type",2006,OverlayService.runtime!!.primaryWindowType)
         assertEquals("two probes, one band replaces two bottom corners",6,OverlayService.runtime!!.windowCount)
         // These are emulator composition pixels, NOT proof of Xperia SystemUI visibility.
         val shot=inst.uiAutomation.takeScreenshot()!!

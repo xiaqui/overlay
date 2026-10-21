@@ -4,6 +4,8 @@ data class NavbarColor(val color: Int,val source: String)
 
 /** No Android dependencies; never infer a visible bar from its saved/stable size. */
 object NavbarPolicy {
+    // Dedicated tint layer. Clock/upper corners retain the existing service's activeType.
+    fun windowType(sdk: Int)=if(sdk>=26)2038 else 2003
     fun eligible(enabled: Boolean,portrait: Boolean,threeButtons: Boolean,bars: BarState)=
         enabled && portrait && threeButtons && bars.known && bars.bottom>0 && bars.left==0 && bars.right==0
 
