@@ -158,7 +158,7 @@ class NavbarTest {
         assertBandPixel(red)
         main { settings.set("navbar_unified",true) }
         waitFor("top and bottom bands are drawn") { OverlayService.runtime?.let {
-            it.foreground==ctx.packageName && it.navbar?.active==true && it.statusbar?.active==true && it.navbar.color==red && it.statusbar.color==red
+            it.foreground==ctx.packageName && it.navbar?.active==true && it.statusbar?.active==true && it.navbar?.color==red && it.statusbar?.color==red
         }==true }
         assertUnifiedPixels(red)
         var unifiedShot=inst.uiAutomation.takeScreenshot()!!
