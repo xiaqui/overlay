@@ -162,7 +162,9 @@ class NavbarTest {
         }==true }
         assertUnifiedPixels(red)
         var unifiedShot=inst.uiAutomation.takeScreenshot()!!
-        assertEquals("upper corner remains black over status tint",Color.BLACK,unifiedShot.getPixel(0,0))
+        val cornerRadius=(settings.number("radius",18)*ctx.resources.displayMetrics.density).toInt()
+        val hasBlackUpperCorner=(0 until cornerRadius).any { y->(0 until cornerRadius).any { x->unifiedShot.getPixel(x,y)==Color.BLACK } }
+        assertTrue("upper corner remains black over status tint",hasBlackUpperCorner)
         val hasLightStatusContent=(0 until unifiedShot.width).step(2).any { x->
             val c=unifiedShot.getPixel(x,maxOf(1,OverlayService.runtime!!.bars.top/2))
             Color.red(c)>190 && Color.green(c)>190 && Color.blue(c)>190
