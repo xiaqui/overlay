@@ -53,7 +53,7 @@ class NavbarTest {
         inst.waitForIdleSync()
     }
     private fun active(color: Int=red) {
-        waitFor("band ready $color") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.navbar?.active==true && it.navbar.color==color }==true }
+        waitFor("band ready $color") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.navbar?.active==true && it.navbar?.color==color }==true }
         android.os.SystemClock.sleep(400)
     }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
@@ -129,11 +129,11 @@ class NavbarTest {
         val blue=0xff304080.toInt()
         main { settings.setNavbarColor(pkg,blue) }
         ctx.startActivity(settingsIntent)
-        waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar.color==blue }==true }
+        waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.color==blue }==true }
         main { settings.setNavbarColor(pkg,null) }
         waitFor("unset external app clears tint") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==false }==true }
         main { settings.set("navbar_auto",true) }
-        waitFor("external APK automatic estimate applied") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar.source in listOf("テーマ推定","アイコン推定") }==true }
+        waitFor("external APK automatic estimate applied") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.source in listOf("テーマ推定","アイコン推定") }==true }
         val cachedLoads=OverlayService.runtime!!.navbar!!.colorLoads
         android.os.SystemClock.sleep(1600)
         assertEquals("poll reuses cached automatic estimate",cachedLoads,OverlayService.runtime!!.navbar!!.colorLoads)
