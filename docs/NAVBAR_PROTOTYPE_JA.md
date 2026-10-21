@@ -102,7 +102,7 @@ IMEを一般権限で全アプリについて確実に検出する機構はな�
 | PR最終head | c5819db96c9afc56683e20a8942666e4d0ef3fd7 |
 | PR CI | https://github.com/xiaqui/overlay/actions/runs/39564559023 — success |
 | #7 merge（初回main検証、未配送） | 44f639b4b1609e99b01d2cb9f70cdea7338a7d3d |
-| 初回main CI | https://github.com/xiaqui/overlay/actions/runs/39565528246 — failure（API24旧Smokeのバー遷移待機不足） |
+| 初回main CI | https://github.com/xiaqui/overlay/actions/runs/39565528246 — failure（API24旧Smokeのfullscreen画素待機失敗、原因未確定） |
 | テスト限定修正PR | https://github.com/xiaqui/overlay/pull/8 — マージ済み |
 | #8最終head / CI | 71a03ee02865548bcffefb608c210a6cd485d749 / https://github.com/xiaqui/overlay/actions/runs/39566829656 — success |
 | #8 merge / 最終APK source | 84dfbea72fce62ad0a5c6d6bde21e5ef1e5f33cc |
