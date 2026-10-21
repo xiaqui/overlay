@@ -74,9 +74,24 @@ class NavbarTest {
         }
         assertEquals("band visible after composition wait",expected,observed)
     }
+    private fun assertUnifiedPixels(expected: Int) {
+        var top=0;var bottom=0
+        repeat(20) {
+            val state=OverlayService.runtime!!
+            val frame=inst.uiAutomation.takeScreenshot()!!
+            top=frame.getPixel(frame.width/2,maxOf(1,state.bars.top/2))
+            bottom=frame.getPixel(frame.width/2,frame.height-state.bars.bottom+5)
+            frame.recycle()
+            if(top==expected && bottom==expected)return
+            android.os.SystemClock.sleep(250)
+        }
+        assertEquals("status and navbar use one composed RGB",expected,top)
+        assertEquals("status and navbar use one composed RGB",expected,bottom)
+    }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
         val colors=NavbarColors(ctx)
         assertEquals("foreign APK application theme",0xff426a88.toInt(),colors.themeColor(inst.context.packageName))
+        assertEquals("unified mode prefers colorPrimaryDark",0xff234567.toInt(),colors.themeColor(inst.context.packageName,true))
         assertEquals(0xff183858.toInt(),colors.iconColor(ColorDrawable(0xff123456.toInt())))
         assertEquals("テーマ推定",colors.resolve(inst.context.packageName,true,null)?.source)
         repeat(5) { colors.resolve(inst.context.packageName,true,null) }
@@ -99,11 +114,26 @@ class NavbarTest {
                 assertEquals("black lower corners last, mode=$mode",if(mode==Policy.NONE)red else Color.BLACK,bitmap.getPixel(0,y))
                 bitmap.recycle()
             }
+            val recentsSpec=NavbarSpec(160,300,30,18,true,false,NavbarColor(red,"test"),false)
+            val recentsView=NavbarBandView(ctx,recentsSpec)
+            recentsView.layout(0,0,recentsSpec.width,recentsSpec.height)
+            val recentsBitmap=Bitmap.createBitmap(recentsSpec.width,recentsSpec.height,Bitmap.Config.ARGB_8888)
+            recentsView.draw(Canvas(recentsBitmap))
+            assertEquals("Recents stops fill",Color.TRANSPARENT,recentsBitmap.getPixel(80,recentsSpec.height-3))
+            assertEquals("Recents preserves lower corner",Color.BLACK,recentsBitmap.getPixel(0,recentsSpec.height-1))
+            recentsBitmap.recycle()
+            val statusView=StatusbarBandView(ctx).apply { spec=StatusbarSpec(160,24,NavbarColor(red,"test"));layout(0,0,160,24) }
+            val statusBitmap=Bitmap.createBitmap(160,24,Bitmap.Config.ARGB_8888)
+            statusView.draw(Canvas(statusBitmap));assertEquals("status fill",red,statusBitmap.getPixel(80,12));statusBitmap.recycle()
             val layer=NavbarLayer(ctx,ctx.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager,
                 { w,h->WindowManager.LayoutParams(w,h,2006,24,-3).apply { gravity=Gravity.TOP or Gravity.LEFT } },
                 { _,_->throw WindowManager.BadTokenException("test rejection") },{}, {})
             assertFalse(layer.apply(NavbarSpec(160,300,30,18,true,false,NavbarColor(red,"test"))))
             assertFalse(layer.ready);assertNull(layer.view)
+            val statusLayer=StatusbarLayer(ctx,ctx.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager,
+                { w,h->WindowManager.LayoutParams(w,h,2002,24,-3).apply { gravity=Gravity.TOP or Gravity.LEFT } },
+                { _,_->throw WindowManager.BadTokenException("test rejection") },{}, {})
+            assertFalse("top failure remains local",statusLayer.attach());assertNull(statusLayer.view)
         }
     }
     @Test fun actualBandAppSwitchFiveModesOffFullscreenRotationAndButtons() {
@@ -126,6 +156,19 @@ class NavbarTest {
         assertEquals("two probes, one band replaces two bottom corners",6,OverlayService.runtime!!.windowCount)
         // Wait for actual composition, not only WM layout/ready. Dump geometry if still occluded.
         assertBandPixel(red)
+        main { settings.set("navbar_unified",true) }
+        waitFor("top and bottom bands are drawn") { OverlayService.runtime?.let {
+            it.foreground==ctx.packageName && it.navbar?.active==true && it.statusbar?.active==true && it.navbar.color==red && it.statusbar.color==red
+        }==true }
+        assertUnifiedPixels(red)
+        var unifiedShot=inst.uiAutomation.takeScreenshot()!!
+        assertEquals("upper corner remains black over status tint",Color.BLACK,unifiedShot.getPixel(0,0))
+        val hasLightStatusContent=(0 until unifiedShot.width).step(2).any { x->
+            val c=unifiedShot.getPixel(x,maxOf(1,OverlayService.runtime!!.bars.top/2))
+            Color.red(c)>190 && Color.green(c)>190 && Color.blue(c)>190
+        }
+        unifiedShot.recycle()
+        assertTrue("native/overlay status symbols remain above tint",hasLightStatusContent)
         // These are emulator composition pixels, NOT proof of Xperia SystemUI visibility.
         val shot=inst.uiAutomation.takeScreenshot()!!
         val nav=OverlayService.runtime!!.bars.bottom
@@ -173,8 +216,9 @@ class NavbarTest {
         shell("appops set ${ctx.packageName} GET_USAGE_STATS allow")
         active()
         main { preview!!.applyBars("immersive") }
-        waitFor("hidden nav removes tint and restores four masks") { OverlayService.runtime?.let { it.bars.known && it.bars.bottom==0 && it.navbar?.active==false && it.locations.size==4 }==true }
+        waitFor("hidden bars remove both tints and restore four masks") { OverlayService.runtime?.let { it.bars.known && it.bars.bottom==0 && it.bars.top==0 && it.navbar?.active==false && it.statusbar?.active==false && it.locations.size==4 }==true }
         main { preview!!.applyBars("normal") };active()
+        waitFor("status tint restores after fullscreen") { OverlayService.runtime?.statusbar?.active==true }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         waitFor("landscape safe fallback") { ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE && OverlayService.runtime?.navbar?.active==false }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT };active()
@@ -190,8 +234,21 @@ class NavbarTest {
         shell("input tap ${size.x/6} ${size.y-b/2}")
         waitFor("Back touch passes through") { preview!!.isFinishing || preview!!.isDestroyed }
         launch();active()
+        main { settings.set("navbar_recents_off",true) }
+        active();waitFor("status remains ready before Recents") { OverlayService.runtime?.statusbar?.active==true }
         shell("input tap ${size.x*5/6} ${size.y-b/2}")
         waitFor("Recents touch passes through") { !preview!!.hasWindowFocus() }
+        val recentsEnd=android.os.SystemClock.elapsedRealtime()+5_000
+        while(android.os.SystemClock.elapsedRealtime()<recentsEnd && OverlayService.runtime?.recentsTintSuppressed!=true)
+            android.os.SystemClock.sleep(150)
+        if(OverlayService.runtime?.recentsTintSuppressed==true) {
+            val state=OverlayService.runtime!!
+            assertFalse("top tint stops in detected Recents",state.statusbar?.active==true)
+            assertTrue("transparent lower owner keeps both lower corners",state.navbar?.active==true)
+            val image=inst.uiAutomation.takeScreenshot()!!
+            assertEquals("lower corner remains black",Color.BLACK,image.getPixel(0,image.height-1));image.recycle()
+            launch();active();waitFor("tints restore after Recents") { OverlayService.runtime?.statusbar?.active==true && OverlayService.runtime?.recentsTintSuppressed==false }
+        } else android.util.Log.i("NavbarPrototypeTest","Recents component was not observable on API ${android.os.Build.VERSION.SDK_INT}; exact policy is covered by JVM tests: ${OverlayService.runtime}")
         launch();active()
         // Existing poll count does not grow. Record observational process cost, not a battery claim.
         val loads=OverlayService.runtime!!.navbar!!.colorLoads
