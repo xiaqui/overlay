@@ -1,3 +1,47 @@
+# Navbar技術検証版・署名配布記録（2026-10-21）
+
+初期OFFのアプリ別固定色／任意のテーマ・アイコン推定色を追加。既存Service・UsageStats・pollを再利用し、
+着色矩形→黒い下隅を同じCanvasに描画。元の時計・電池・全画面判定を維持し、OFF/対象外/未描画は旧角丸へ復帰。
+正式統合の成功とは扱わず、優先5実機の検収は未実施。方式・実機手順・判断基準は [NAVBAR_PROTOTYPE_JA.md](NAVBAR_PROTOTYPE_JA.md)。
+
+| 項目 | 結果 |
+|---|---|
+| 起点main | 22e029c512e0721503401b5538a219c1fcf05618 |
+| 実装PR #7 / merge | https://github.com/xiaqui/overlay/pull/7 / 44f639b4b1609e99b01d2cb9f70cdea7338a7d3d |
+| テスト限定PR #8 / merge | https://github.com/xiaqui/overlay/pull/8 / 84dfbea72fce62ad0a5c6d6bde21e5ef1e5f33cc |
+| #8最終head / CI | 71a03ee02865548bcffefb608c210a6cd485d749 / https://github.com/xiaqui/overlay/actions/runs/39566829656 — success |
+| APK source SHA | 84dfbea72fce62ad0a5c6d6bde21e5ef1e5f33cc（文書追記SHAと区別） |
+| 最終main CI / 配送 | https://github.com/xiaqui/overlay/actions/runs/39605030431 — success / attempt 2 |
+| テスト | JVM15、Lint、debug/androidTest/release build成功。API23/24/26/28/29各6 instrumentation成功 |
+| Release | https://github.com/xiaqui/overlay/releases/tag/overlay-navbar-test-84dfbea7 |
+| APK | https://github.com/xiaqui/overlay/releases/download/overlay-navbar-test-84dfbea7/Overlay-Navbar-Test.apk |
+| 公開状態 / 日時 | prerelease=true、draft=false / 2026-10-21 22:21:39 JST |
+| Release / APK asset ID | 419586098 / 662581909 |
+| 容量 / 0.2.0との差 | 661372 bytes（645.87 KiB）/ +15953 bytes（+2.47%）、新規ライブラリなし |
+| APK SHA256 | 069d4b365788150bf9d365f772921dc8fa6235d5072d25777dff079b1df6ac05 |
+| app | com.xiaqui.overlay / versionCode 3 / 0.3.0-navbar-test / min23 / target25 |
+| 署名job | 119245545762 — success |
+| 公開証明書SHA256 | dcfd2c8122274ec4148473c96b1853989c8d22e58e445d6ec4889ad5b34dffb2 |
+| 署名・配送検証 | 既存keystore・既知hashの0.2.0 APKのSigner証明書と一致。添付後再取得cmp/SHA256/apksigner verify成功 |
+| 公開後Source照合 | tag/target/本文がsource SHAに一致。SOURCE_SHA.txtの期待digest 15dc5819f0955102c43f9a0d95eaa91ec7a1ca537c089b07463f86a90a756936 とasset digest一致 |
+| 公開後checksum照合 | SHA256SUMSの期待digest 807605401b8930fb12af98463f385762670d733aed157899f7ecff5490375a5d とasset digest一致 |
+| 既存0.2.0 | Release本文/target/更新日時、全asset ID/容量/digest不変。上書き配布なし |
+
+独立レビューでP1（不可視rootのままSurfaceなし・下隅所有移行が早い）、P2（Usage再許可cursor、
+遅延イベント取りこぼし対策）を修正確認。テスト限定PR #8も独立レビュー済み、追加P1/P2なし。
+初回2006/異種別/flags比較の失敗は、後のNO_SURFACE診断によりレイヤー不可能と断定しないよう訂正した。
+最終main attempt 1はAPI24旧Smokeの10秒fullscreen画素待ちが失敗し、他4OSとNavbar機能試験は成功。
+同一SHAの失敗jobを一度再実行したattempt 2ではAPI24全6件成功。初回失敗を消さず、安定成功とは扱わない。
+製品Navbarの実画素成功と、テスト用Activityのfocus/バー遷移の未確定な一時性を区別する。
+
+公開後にWorkでRelease metadata/hash/sourceを照合し、バイナリ再取得・暗号署名はActionsで実測した。
+秘密鍵・パスワードは表示せず、署名材料はjob終了時に削除。Artifactアップロードは不使用。
+実機未検証: XZ1 Compact最優先、Z3TC/Z4T/Mini/Handの可視性・更新インストール・ボタン色コントラスト・
+IME/OEM/transient動作・長時間CPU/電池。エミュレータ成功をXperia成功と同一視しない。
+本体コードの作業は完了し、正式統合は実機検収後に判断する。以下は過去の0.2.0/初版記録。
+
+---
+
 # Issue #4 修正・配布記録（2026-10-21）
 正本: https://github.com/xiaqui/overlay/issues/4#issuecomment-6298032616 。初版のXperia基本機能は良好とのユーザー報告を受け、既存実装を維持して2点を局所修正。修正版の実機検収は未実施。以下の初版記録にある「全実機未検証」は初版配布時点の履歴。
 
@@ -117,3 +161,4 @@ CI初回の廃止済みtoolsパッケージ指定と、API29仮想ディスク�
 次の検収: ReleaseのOverlay.apkを実機へインストールし「重ねて表示」許可→「表示を開始」→白/黒の全画面確認。詳細は DEVICE_TEST_JA.md。実機未合格を理由にAPK配布を止めず、今回の指示どおり可能な工程を完了した。
 
 この記録を追加する文書コミットと、APKを生成したsource SHAは異なる。上のAPK source SHAが配布バイナリの正本。
+

@@ -75,7 +75,8 @@ Overlay 0.2.0のReleaseは変更しない。新機能は初期OFF、同じ
 不透明なSystemUI、IME、シェード、OSのコントラストscrimより手前に出す保証はない。
 同一Canvasが保証するのは**Overlay自身の帯と下隅の順序**だけであり、OS全体の最上位ではない。
 レイアウトが成功しても画面上で見えているとは断定しない。
-バー表示切替/アプリ切替にはイベント・既存pollによる最大約500ms＋処理時間の遅れがある。
+通常のpoll間隔は500msだが、OSのUsageイベント公開遅延と処理時間が加わる。
+アプリ切替反映の上限時間を保証する値ではない。
 分割画面・横画面・ジェスチャーへの完全対応は今回しない。
 IMEを一般権限で全アプリについて確実に検出する機構はなく、正常なバー判定でも遮蔽される場合がある。
 
@@ -93,8 +94,59 @@ IMEを一般権限で全アプリについて確実に検出する機構はな�
 外部Activity起動はテスト側のam start -Wで実際の起動成功を確認し、起動失敗と検出失敗を分ける。
 これは製品のADB依存ではない。5秒を超えるOSイベント遅延やUsage履歴自体の欠落は保証できない。
 最初のCIで追加instrumentationのモジュール間smart castエラーを検出し、nullable参照に修正した。
-失敗runを合格扱いせず、最終headで全5OSを再実行する。
-自動試験と配送の最終結果は実行後に追記する。
+失敗runを合格扱いせず、最終headで全5OSを再実行した。
+独立レビューではP1 1件・P2 2件を修正確認し、最終候補c5819dbの再レビューで追加P1/P2なし。
+
+| 記録 | 結果 |
+|---|---|
+| PR最終head | c5819db96c9afc56683e20a8942666e4d0ef3fd7 |
+| PR CI | https://github.com/xiaqui/overlay/actions/runs/39564559023 — success |
+| #7 merge（初回main検証、未配送） | 44f639b4b1609e99b01d2cb9f70cdea7338a7d3d |
+| 初回main CI | https://github.com/xiaqui/overlay/actions/runs/39565528246 — failure（API24旧Smokeのfullscreen画素待機失敗、原因未確定） |
+| テスト限定修正PR | https://github.com/xiaqui/overlay/pull/8 — マージ済み |
+| #8最終head / CI | 71a03ee02865548bcffefb608c210a6cd485d749 / https://github.com/xiaqui/overlay/actions/runs/39566829656 — success |
+| #8 merge / 最終APK source | 84dfbea72fce62ad0a5c6d6bde21e5ef1e5f33cc |
+| 最終main再検証・配送 | https://github.com/xiaqui/overlay/actions/runs/39605030431 — success（attempt 2） |
+| JVM / Lint / debug | 15件 / lintDebug / assembleDebugAndroidTest / assembleDebug 成功 |
+| API23 / 24 / 26 / 28 / 29 | 各6 instrumentation成功（PR最終SHA、計30件） |
+| 最終mainの端末試験 | 各6件成功。API24はattempt 2、他4OSはattempt 1で成功 |
+
+最終PRでは初回赤色帯、黒い下隅の5状態、共通下OFF/半径0、外部Settingsの固定色と自動色を
+実際のスクリーンショット画素で確認した。既存時計/電池/影/透過/全画面/設定移行試験も成功。
+Home/Back/Recentsはナビ領域への実tapによる画面/Activity変化をassertした。
+Android8（API26）で成功したのはAOSPエミュレータであり、XZ1 Compact実機ではない。
+署名配送・添付後再取得検証・公開後メタデータ照合を完了した。
+
+署名の独立照合用に、既知SHA256が一致したローカルの旧0.2.0 APKからPKCS#7の公開証明書を抽出した。
+証明書DERのSHA256は `dcfd2c8122274ec4148473c96b1853989c8d22e58e445d6ec4889ad5b34dffb2`。
+新APKとの一致・暗号署名検証はActionsの署名配送jobで成功した。秘密鍵は抽出・表示していない。
+
+### 公開APKと検証結果
+
+| 項目 | 結果 |
+|---|---|
+| Release | https://github.com/xiaqui/overlay/releases/tag/overlay-navbar-test-84dfbea7 |
+| APK | https://github.com/xiaqui/overlay/releases/download/overlay-navbar-test-84dfbea7/Overlay-Navbar-Test.apk |
+| 公開日時 | 2026-10-21 22:21:39 JST / draft=false / prerelease=true |
+| Release / APK asset ID | 419586098 / 662581909 |
+| APK容量 | 661372 bytes（645.87 KiB） |
+| APK SHA256 | 069d4b365788150bf9d365f772921dc8fa6235d5072d25777dff079b1df6ac05 |
+| APK source / tag commit | 84dfbea72fce62ad0a5c6d6bde21e5ef1e5f33cc |
+| 署名配送job | 119245545762 — success |
+| 署名 | apksigner verify成功、旧0.2.0 APKおよび既存keystoreの公開証明書指紋と一致 |
+| 互換性条件 | com.xiaqui.overlay / versionCode 3 / 0.3.0-navbar-test / min23 / target25 / 非debuggable |
+| 通信・配送 | INTERNET権限なし、Artifactアップロード不使用、Releasesへ直接添付 |
+| 添付後検証 | APKを認証付き再取得しcmp・sha256sum -c・apksigner verify成功後に公開 |
+
+公開後、WorkでもRelease target、tag参照、本文Source、APK asset digestを上記SHAと照合した。
+SOURCE_SHA.txtは最終source SHA＋改行の41 bytes、期待SHA256
+`15dc5819f0955102c43f9a0d95eaa91ec7a1ca537c089b07463f86a90a756936` が公開asset digestと一致。
+SHA256SUMSは上記APK hash＋2空白＋ファイル名＋改行の90 bytes、期待SHA256
+`807605401b8930fb12af98463f385762670d733aed157899f7ecff5490375a5d` も一致した。
+公開APKのバイナリ再取得・暗号署名の実測はActionsで行い、Workの公開後照合はmetadataに基づく。
+APK-VERIFICATION.txtも添付。旧0.2.0 Releaseの本文、target、更新日時、全asset ID/容量/digestが
+作業前後で不変であることを確認した。ダウンロード回数などの閲覧統計は比較対象外。
+後続の文書更新コミットはAPK sourceとは区別する。
 
 ### 失敗実験と原因の訂正
 
@@ -108,9 +160,21 @@ API23/24/26/28/29の全てで2006帯の実座標・サイズ・ready状態は成
 かつ `draws=0` と確認された。**これを2006のレイヤーで着色不可能な証拠とはしない。**
 初期INVISIBLEからlayout callback内のVISIBLE変更がWMへ反映されずSurfaceが作られない
 P1を特定。独立レビューを経て、post＋明示WM更新・初回onDraw後のみready・5秒未描画期限へ修正した。
-不要な種別/flags変更は元に戻し、既存activeType共有で改めて実画素を検証する。
+不要な種別/flags変更は元に戻し、既存activeType共有で改めて実画素を検証し、PR最終試験は全5OSで成功した。
 比較の失敗を消さず、原因をレイヤー制約と早計に断定しない記録とする。
 API26で従来角丸の画素待機500msが一度不足したため、黒画素というassertは変えず期限付き再確認に変更した。
+PR #7最終試験は全OS成功したが、そのmain再試験ではAPI24旧Smokeが1秒時点で
+青いナビバーを観測した（他4OSおよび同jobのNavbar試験は成功）。実ボタン操作後の
+transientバー遷移残存が疑われたため、PR #8で元の1秒安定待機と全assertを維持したまま、
+背景/status/navの同じ期待画素成立を10秒以内で待つ検査を追加した。
+独立レビューでテスト限定P2修正・追加P1/P2なしを確認し、#8最終headで全5OS各6件が成功した。
+失敗mainは成功扱いせず、最終マージ後の再検証を通してから配送した。
+最終main39605030431のattempt 1でもAPI24旧Smokeの10秒画素待機が一度失敗した。
+同jobのNavbar検査と他4OSは成功したが、「単に1秒では短い」という説明だけでは原因は確定しない。
+独立担当と確認の上、全assert・ソースSHAを維持して失敗jobを一度だけ再実行し、
+その結果、attempt 2のAPI24全6件は同一SHAで成功した（job119243217682）。
+他4OSはattempt 1の成功を維持した。テスト用Activityのfocus/immersive状態等の一時性は未確定で、
+初回を含めて安定成功したとは扱わない。
 
 追加テストは色優先順位/自動OFF/暗色化/代表色/未知バー停止、他APKテーマ読込、キャッシュ、
 Canvas画素順序、窓拒否時復帰、実際のWindowManager配置、アプリ切替・固定色解除、
@@ -120,13 +184,27 @@ Canvas画素順序、窓拒否時復帰、実際のWindowManager配置、アプ�
 
 ### サイズ・常駐負荷
 
-基準0.2.0 APKは645,419 bytes。試作APKサイズ/差分は署名ビルド後に追記する。
+基準0.2.0 APKは645,419 bytes。試作は661,372 bytes、増分15,953 bytes（+2.47%）。
 新規依存・Service・権限は0。既存の通常構成は時計1＋角丸4＝5窓。
 着色ONでは観測2＋時計1＋上隅2＋着色/下隅共用1＝6窓（角丸設定により変動）。
 ONの監視周期は既存バー監視と同じ500ms、OFFは従来条件のまま。
 最大32件キャッシュ、アイコン一時bitmap 4KiBと小さなヒストグラムのみ。
 AndroidテストでPSS/短時間CPU観測値をログへ記録するが、計測プロセスには
 instrumentationも含まれる。実機の待機CPU・電池・温度増分は未測定であり「負荷増なし」と断言しない。
+
+PR #8最終CI39566829656の参考観測（各約2.5秒、同じinstrumentationプロセス）:
+
+| API | OFF PSS KiB | ON PSS KiB | OFF CPU ms | ON CPU ms |
+|---|---:|---:|---:|---:|
+| 23 | 25065 | 22077 | 127 | 14 |
+| 24 | 20956 | 22923 | 64 | 18 |
+| 26 | 26885 | 28704 | 47 | 15 |
+| 28 | 34040 | 40689 | 91 | 22 |
+| 29 | 52274 | 56504 | 155 | 34 |
+
+OFFは開始直後、ONは多数のActivity切替/描画テスト後で、実行順・GC・テスト負荷が異なる。
+この差を機能追加の定常メモリ/CPU増分とは解釈しない。ONの方がCPUが少ない結果も性能改善を意味しない。
+定常負荷は実機で同条件の長時間ON/OFF比較が必要。
 
 ## 実機検収（必須・未実施）
 
