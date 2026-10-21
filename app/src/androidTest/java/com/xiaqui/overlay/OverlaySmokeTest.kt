@@ -41,11 +41,21 @@ class OverlaySmokeTest {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("dark",dark))
                 assertNotNull("Preview reached foreground",preview)
                 instrumentation.waitForIdleSync()
-                android.os.SystemClock.sleep(1000)
+                android.os.SystemClock.sleep(1000) // Preserve original overlay/font settling time.
+                val background=if(dark)0 else 0xFFFFFF
+                // After real navigation-button tests, SystemUI may retain a transient bar for
+                // longer than 1s. Require actual hidden-bar pixels, not an arbitrary sleep.
+                waitFor {
+                    val frame=instrumentation.uiAutomation.takeScreenshot()
+                    if(frame==null)false else try {
+                        (frame.getPixel(frame.width/2,frame.height/4) and 0xFFFFFF)==background &&
+                            (frame.getPixel(frame.width/2,2) and 0xFFFFFF)==background &&
+                            (frame.getPixel(frame.width/2,frame.height-3) and 0xFFFFFF)==background
+                    } finally { frame.recycle() }
+                }
                 val shot=instrumentation.uiAutomation.takeScreenshot()
                 assertNotNull("Fullscreen display is capturable",shot)
                 val bitmap=shot!!
-                val background=if(dark)0 else 0xFFFFFF
                 assertEquals("Preview background",background,bitmap.getPixel(bitmap.width/2,bitmap.height/4) and 0xFFFFFF)
                 assertEquals("Status bar is hidden",background,bitmap.getPixel(bitmap.width/2,2) and 0xFFFFFF)
                 assertEquals("Navigation bar is hidden",background,bitmap.getPixel(bitmap.width/2,bitmap.height-3) and 0xFFFFFF)
@@ -83,3 +93,4 @@ class OverlaySmokeTest {
         }
     }
 }
+
