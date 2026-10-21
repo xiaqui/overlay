@@ -31,6 +31,7 @@ class NavbarTest {
             if(condition())return
             android.os.SystemClock.sleep(150)
         }
+        android.util.Log.i("NavbarPrototypeTest",shell("dumpsys activity activities").lines().filter { it.contains("mResumedActivity") || it.contains("mFocusedActivity") || it.contains("topResumedActivity") }.joinToString("\n"))
         fail("$message: ${OverlayService.runtime}")
     }
     @Before fun before() {
@@ -152,7 +153,8 @@ class NavbarTest {
         val pkg=ctx.packageManager.resolveActivity(settingsIntent,0)!!.activityInfo.packageName
         val blue=0xff304080.toInt()
         main { settings.setNavbarColor(pkg,blue) }
-        ctx.startActivity(settingsIntent)
+        val launched=shell("am start -W -a android.settings.SETTINGS")
+        assertTrue("external Activity actually starts: $launched",launched.contains("Status: ok"))
         waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.color==blue }==true }
         assertBandPixel(blue)
         main { settings.setNavbarColor(pkg,null) }

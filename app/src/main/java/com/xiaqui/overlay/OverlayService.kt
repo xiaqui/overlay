@@ -242,7 +242,8 @@ class OverlayService : Service() {
             return
         }
         val now=System.currentTimeMillis()
-        val start=if(lastQuery==0L || lastQuery>now)now-86_400_000 else lastQuery
+        val start=if(lastQuery==0L || lastQuery>now)now-86_400_000
+            else if(settings.navbarEnabled())lastQuery-5000 else lastQuery
         val events=(getSystemService(USAGE_STATS_SERVICE) as UsageStatsManager).queryEvents(start,now)
         val event=UsageEvents.Event()
         while(events.hasNextEvent()) {
