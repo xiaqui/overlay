@@ -13,8 +13,10 @@ data class NavbarSpec(val width: Int,val screenHeight: Int,val navHeight: Int,va
 /** A small portrait band owns BOTH fill and the lower masks, in that exact drawing order. */
 class NavbarBandView(context: Context,var spec: NavbarSpec): View(context) {
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
+    var draws=0;private set
     init { importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO }
     override fun onDraw(canvas: Canvas) {
+        draws++
         paint.color=spec.color.color
         canvas.drawRect(0f,(height-spec.navHeight).toFloat(),width.toFloat(),height.toFloat(),paint)
         if(!spec.bottom || spec.radius<=0)return

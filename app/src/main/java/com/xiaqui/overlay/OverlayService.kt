@@ -195,7 +195,7 @@ class OverlayService : Service() {
         runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
-            navbarLayer?.view?.height ?: 0,NavbarPolicy.windowType(Build.VERSION.SDK_INT),navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0) else null,windows.size,activeType)
+            navbarLayer?.view?.height ?: 0,NavbarPolicy.windowType(Build.VERSION.SDK_INT),navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,windows.size,activeType)
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -262,7 +262,10 @@ class OverlayService : Service() {
         if(settings.navbarEnabled()) {
             val spec=navbarSpec(mode,mask,r,display)
             if(spec!=null && navbarLayer==null)navbarLayer=NavbarLayer(this,wm,
-                { w,h->params(w,h,Gravity.TOP or Gravity.LEFT,NavbarPolicy.windowType(Build.VERSION.SDK_INT)) },{ v,p->add(v,p) },
+                { w,h->params(w,h,Gravity.TOP or Gravity.LEFT,NavbarPolicy.windowType(Build.VERSION.SDK_INT)).apply {
+                    // The slim band extends beyond the app content frame into the nav region.
+                    flags=flags and WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN.inv()
+                } },{ v,p->add(v,p) },
                 { v->windows.remove(v);wm.removeViewImmediate(v) },
                 { handler.removeCallbacks(onBarsChanged);handler.post(onBarsChanged) })
             bandOwned=navbarLayer?.apply(spec)==true
@@ -306,7 +309,7 @@ class OverlayService : Service() {
         clearWindows();stopForeground(true);super.onDestroy()
     }
     override fun onBind(intent: Intent?) : IBinder?=null
-    data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int)
+    data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int,val draws: Int=0)
     data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val windowCount: Int=0,val primaryWindowType: Int=2006)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null

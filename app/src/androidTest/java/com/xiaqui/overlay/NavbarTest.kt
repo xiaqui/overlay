@@ -105,6 +105,22 @@ class NavbarTest {
         assertEquals("bounded tint layer",NavbarPolicy.windowType(android.os.Build.VERSION.SDK_INT),OverlayService.runtime!!.navbar!!.windowType)
         assertEquals("clock and upper corners keep existing type",2006,OverlayService.runtime!!.primaryWindowType)
         assertEquals("two probes, one band replaces two bottom corners",6,OverlayService.runtime!!.windowCount)
+        // Wait for actual composition, not only WM layout/ready. Dump geometry if still occluded.
+        var painted=false;var observed=0
+        repeat(20) {
+            if(!painted) {
+                val frame=inst.uiAutomation.takeScreenshot()!!
+                observed=frame.getPixel(frame.width/2,frame.height-OverlayService.runtime!!.bars.bottom+5)
+                painted=observed==red;frame.recycle()
+                if(!painted)android.os.SystemClock.sleep(250)
+            }
+        }
+        if(!painted) {
+            val dump=shell("dumpsys window windows")
+            val section=dump.substringAfter("Overlay Navbar Test",dump).take(6500)
+            android.util.Log.i("NavbarPrototypeTest","band diagnostic: ${OverlayService.runtime}\n$section")
+        }
+        assertEquals("band visible after composition wait",red,observed)
         // These are emulator composition pixels, NOT proof of Xperia SystemUI visibility.
         val shot=inst.uiAutomation.takeScreenshot()!!
         val nav=OverlayService.runtime!!.bars.bottom
