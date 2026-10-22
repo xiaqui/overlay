@@ -242,7 +242,7 @@ class OverlayService : Service() {
         if(key!=navbarKey) {
             navbarCandidate=if(fixed==null && !automatic)null else {
                 val colors=navbarColors ?: NavbarColors(this).also { navbarColors=it }
-                colors.resolve(pkg,automatic,fixed,settings.unifiedBars())
+                colors.resolve(pkg,automatic,fixed) // Keep the original Navbar color for both bars.
             }
             navbarKey=key
         }
