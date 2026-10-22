@@ -164,7 +164,7 @@ jobs:
           cat > delivery/RELEASE_NOTES.md <<NOTES
           Statusbar + Recents technical prototype / versionCode 4 / upgrades Overlay 0.2.0 with the same key.
           Both new settings are OFF by default. Portrait + 3-button navigation is the primary scope.
-          Unified: fixed app color > colorPrimaryDark > colorPrimary > icon representative > no tint.
+          Unified: fixed app color > colorPrimary > icon representative > no tint (same as prior Navbar auto color).
           Exact-component Recents detection stops tint only; corners, clock and battery stay active.
           Xperia status pixels, notification-icon layering and OEM Recents acceptance are pending.
           Existing Releases are unchanged. See docs/STATUSBAR_RECENTS_PROTOTYPE_JA.md.
