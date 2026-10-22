@@ -5,7 +5,7 @@ import android.graphics.*
 import android.view.View
 import android.view.WindowManager
 
-data class NavbarSpec(val width: Int,val screenHeight: Int,val navHeight: Int,val radius: Int,val bottom: Boolean,val inside: Boolean,val color: NavbarColor) {
+data class NavbarSpec(val width: Int,val screenHeight: Int,val navHeight: Int,val radius: Int,val bottom: Boolean,val inside: Boolean,val color: NavbarColor,val tintVisible: Boolean=true) {
     val height get()=navHeight+if(bottom)radius else 0
     val top get()=screenHeight-height
 }
@@ -18,8 +18,11 @@ class NavbarBandView(context: Context,var spec: NavbarSpec): View(context) {
     init { importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO }
     override fun onDraw(canvas: Canvas) {
         draws++
-        paint.color=spec.color.color
-        canvas.drawRect(0f,(height-spec.navHeight).toFloat(),width.toFloat(),height.toFloat(),paint)
+        canvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR)
+        if(spec.tintVisible) {
+            paint.color=spec.color.color
+            canvas.drawRect(0f,(height-spec.navHeight).toFloat(),width.toFloat(),height.toFloat(),paint)
+        }
         if(spec.bottom && spec.radius>0) {
             paint.color=Color.BLACK
             val r=spec.radius.toFloat()

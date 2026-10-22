@@ -158,6 +158,13 @@ class Issue4Test {
             assertEquals(1,upgraded.number("app:top",-1));assertTrue(upgraded.bool("top"))
             upgraded.setRule("top",Policy.BOTH_INSIDE)
             assertEquals(Policy.BOTH_INSIDE,Settings(ctx).rule("top"))
+            assertFalse("unified is initially off",upgraded.unifiedBars())
+            assertFalse("Recents tint stop is initially off",upgraded.suppressRecentsTint())
+            upgraded.set("navbar_unified",true);upgraded.set("navbar_recents_off",true)
+            assertFalse("Navbar master switch controls both additions",upgraded.unifiedBars())
+            assertFalse("Navbar master switch controls both additions",upgraded.suppressRecentsTint())
+            upgraded.set("navbar_enabled",true)
+            assertTrue(upgraded.unifiedBars());assertTrue(upgraded.suppressRecentsTint())
         }
     }
 }

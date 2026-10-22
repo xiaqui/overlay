@@ -26,6 +26,8 @@ class Settings(context: Context) {
         prefs.edit().apply { if(value==0)remove("display:$pkg") else putInt("display:$pkg",value.coerceIn(1,2)) }.apply()
     }
     fun navbarEnabled()=bool("navbar_enabled")
+    fun unifiedBars()=navbarEnabled() && bool("navbar_unified")
+    fun suppressRecentsTint()=navbarEnabled() && bool("navbar_recents_off")
     fun navbarColor(pkg: String): Int?=if(prefs.contains("navbar:$pkg"))number("navbar:$pkg",0) else null
     fun setNavbarColor(pkg: String,color: Int?) {
         prefs.edit().apply { if(color==null)remove("navbar:$pkg") else putInt("navbar:$pkg",color or (255 shl 24)) }.apply()

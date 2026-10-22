@@ -25,16 +25,20 @@ class OverlayService : Service() {
     private var battery=-1
     private var charging=false
     private var foreground: String?=null
+    private var foregroundTarget: ForegroundTarget?=null
     private var lastQuery=0L
     private var lastMask=-1
     private var receiverRegistered=false
     private var activeType=2006
     private val cornerWindows=mutableListOf<View>()
     private var navbarLayer: NavbarLayer?=null
+    private var statusbarLayer: StatusbarLayer?=null
     private var navbarColors: NavbarColors?=null
+    private var recentsDetector: RecentsDetector?=null
     private var navbarKey: String?=null
     private var navbarCandidate: NavbarColor?=null
     private var navbarReason="未適用"
+    private var recentsTintSuppressed=false
     private var lastBandOwned=false
     private var packagesRegistered=false
     private val packageReceiver=object: BroadcastReceiver() {
@@ -115,6 +119,7 @@ class OverlayService : Service() {
     private fun clearWindows() {
         handler.removeCallbacks(minute);handler.removeCallbacks(poll);handler.removeCallbacks(onBarsChanged)
         navbarLayer?.clear();navbarLayer=null;lastBandOwned=false;navbarKey=null;navbarCandidate=null
+        statusbarLayer?.clear();statusbarLayer=null;recentsDetector=null;recentsTintSuppressed=false
         observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
         windows.clear();cornerWindows.clear();status=null;lastMask=-1;runtime=null
@@ -140,6 +145,14 @@ class OverlayService : Service() {
         for(type in types) {
             activeType=type
             try {
+                if(settings.unifiedBars()) {
+                    val statusType=if(Build.VERSION.SDK_INT<26)2002 else activeType
+                    StatusbarLayer(this,wm,{ w,h->params(w,h,Gravity.TOP or Gravity.LEFT,statusType) },
+                        { v,p->add(v,p) },{ v->windows.remove(v);wm.removeViewImmediate(v) },
+                        { handler.removeCallbacks(onBarsChanged);handler.post(onBarsChanged) }).also {
+                        if(it.attach())statusbarLayer=it
+                    }
+                }
                 status=StatusView(this,settings).apply { percent=battery;charging=this@OverlayService.charging }
                 val density=resources.displayMetrics.density
                 val p=params(-2,-2,Gravity.TOP or Gravity.RIGHT).apply {
@@ -192,10 +205,12 @@ class OverlayService : Service() {
         publishRuntime()
     }
     private fun publishRuntime() {
-        runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,lastCornerLayout ?: emptyList(),cornerWindows.map {
+        runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
-            navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,windows.size,activeType)
+            navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,
+            statusbarLayer?.let { StatusbarRuntime(screenOn && it.ready,navbarCandidate?.color,it.view?.height ?: 0,
+                it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType)
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -207,35 +222,59 @@ class OverlayService : Service() {
             navbarColors=null
         }
     }
-    private fun navbarSpec(mode: Int,mask: Int,r: Int,display: android.graphics.Point): NavbarSpec? {
+    private data class TintResolution(val color: NavbarColor?,val suppressed: Boolean)
+    private fun tintResolution(): TintResolution {
+        recentsTintSuppressed=false
+        val pkg=foreground
+        if(pkg==null || !usageAllowed(this)) {
+            navbarReason="使用状況アクセス/前面アプリを確認してください";navbarCandidate=null;navbarKey=null
+            return TintResolution(null,false)
+        }
+        if(settings.suppressRecentsTint()) {
+            val detector=recentsDetector ?: RecentsDetector(this).also { recentsDetector=it }
+            if(detector.shouldSuppress(true,foregroundTarget)) {
+                recentsTintSuppressed=true;navbarReason="Recents判定により上下着色を停止";navbarCandidate=null;navbarKey=null
+                return TintResolution(null,true)
+            }
+        }
+        val fixed=settings.navbarColor(pkg);val automatic=settings.bool("navbar_auto")
+        val key="$pkg:$fixed:$automatic:${settings.unifiedBars()}"
+        if(key!=navbarKey) {
+            navbarCandidate=if(fixed==null && !automatic)null else {
+                val colors=navbarColors ?: NavbarColors(this).also { navbarColors=it }
+                colors.resolve(pkg,automatic,fixed,settings.unifiedBars())
+            }
+            navbarKey=key
+        }
+        if(navbarCandidate==null)navbarReason="固定色・推定色なし（従来表示）"
+        return TintResolution(navbarCandidate,false)
+    }
+    private fun navbarSpec(mode: Int,mask: Int,r: Int,display: android.graphics.Point,tint: TintResolution): NavbarSpec? {
         val portrait=resources.configuration.orientation==Configuration.ORIENTATION_PORTRAIT && display.y>display.x
         val navMode=resources.getIdentifier("config_navBarInteractionMode","integer","android")
         val threeButtons=navMode==0 || runCatching { resources.getInteger(navMode)==0 }.getOrDefault(false)
         if(!NavbarPolicy.eligible(settings.navbarEnabled(),portrait,threeButtons,bars) || bars.bottom>display.y/3) {
             navbarReason="横画面・ナビ非表示・方式対象外・判定不能のため従来表示";return null
         }
-        val pkg=foreground
-        if(pkg==null || !usageAllowed(this)) { navbarReason="使用状況アクセス/前面アプリを確認してください";return null }
-        val fixed=settings.navbarColor(pkg);val automatic=settings.bool("navbar_auto")
-        val key="$pkg:$fixed:$automatic"
-        if(key!=navbarKey) {
-            navbarCandidate=if(fixed==null && !automatic)null else {
-                val colors=navbarColors ?: NavbarColors(this).also { navbarColors=it }
-                colors.resolve(pkg,automatic,fixed)
-            }
-            navbarKey=key
-        }
-        val color=navbarCandidate ?: run { navbarReason="固定色・推定色なし（従来表示）";return null }
+        val color=tint.color ?: if(tint.suppressed)NavbarColor(android.graphics.Color.TRANSPARENT,"Recents停止") else return null
         val bottom=mask and 2!=0 && r>0
-        val spec=NavbarSpec(display.x,display.y,bars.bottom,r,bottom,mode==Policy.BOTTOM_INSIDE || mode==Policy.BOTH_INSIDE,color)
+        val spec=NavbarSpec(display.x,display.y,bars.bottom,r,bottom,mode==Policy.BOTTOM_INSIDE || mode==Policy.BOTH_INSIDE,color,!tint.suppressed)
         val upperExtent=maxOf(bars.top+(if(mask and 1!=0)r else 0),
             (status?.height ?: 0)+(settings.number("y",0)*resources.displayMetrics.density).toInt())
         if(spec.top<=upperExtent) { navbarReason="上側表示領域との重なりを避けて従来表示";return null }
         return spec
     }
+    private fun statusbarSpec(display: android.graphics.Point,tint: TintResolution,mode: Int,mask: Int,r: Int): StatusbarSpec? {
+        if(!settings.unifiedBars() || tint.suppressed)return null
+        val color=tint.color ?: return null
+        val portrait=resources.configuration.orientation==Configuration.ORIENTATION_PORTRAIT && display.y>display.x
+        if(!portrait || !bars.known || bars.top<=0 || bars.top>display.y/3 || bars.left>0 || bars.right>0)return null
+        val topAtPhysicalEdge=mode!=Policy.TOP_INSIDE && mode!=Policy.BOTH_INSIDE
+        return StatusbarSpec(display.x,bars.top,color,r,mask and 1!=0 && topAtPhysicalEdge)
+    }
     private fun updateForeground() {
         if(!settings.hasRules() || !usageAllowed(this)) {
-            foreground=null
+            foreground=null;foregroundTarget=null
             // Only the opt-in prototype resets the cursor on revoke: allow again may emit no
             // new foreground event. Reuse the existing first-query recovery once permitted.
             if(settings.navbarEnabled())lastQuery=0
@@ -248,7 +287,10 @@ class OverlayService : Service() {
         val event=UsageEvents.Event()
         while(events.hasNextEvent()) {
             events.getNextEvent(event)
-            if(event.eventType==UsageEvents.Event.MOVE_TO_FOREGROUND)foreground=event.packageName
+            if(event.eventType==UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                foreground=event.packageName
+                foregroundTarget=ForegroundTarget(event.packageName,event.className,event.timeStamp)
+            }
         }
         lastQuery=now-1
     }
@@ -259,9 +301,11 @@ class OverlayService : Service() {
         if(!settings.navbarEnabled() && !lastBandOwned && mask==lastMask && offsets==lastCornerLayout) { publishRuntime();return }
         val r=(settings.number("radius",18)*resources.displayMetrics.density).toInt()
         val display=android.graphics.Point();wm.defaultDisplay.getRealSize(display)
+        val tint=if(settings.navbarEnabled())tintResolution() else TintResolution(null,false)
+        statusbarLayer?.apply(statusbarSpec(display,tint,mode,mask,r))
         var bandOwned=false
         if(settings.navbarEnabled()) {
-            val spec=navbarSpec(mode,mask,r,display)
+            val spec=navbarSpec(mode,mask,r,display,tint)
             if(spec!=null && navbarLayer==null)navbarLayer=NavbarLayer(this,wm,
                 { w,h->params(w,h,Gravity.TOP or Gravity.LEFT) },{ v,p->add(v,p) },
                 { v->windows.remove(v);wm.removeViewImmediate(v) },
@@ -308,7 +352,8 @@ class OverlayService : Service() {
     }
     override fun onBind(intent: Intent?) : IBinder?=null
     data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int,val draws: Int=0)
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val windowCount: Int=0,val primaryWindowType: Int=2006)
+    data class StatusbarRuntime(val active: Boolean,val color: Int?,val height: Int,val reason: String,val draws: Int=0)
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {

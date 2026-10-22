@@ -36,7 +36,7 @@ class MainActivity: Activity() {
     private fun showSettings() {
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
         setContentView(ScrollView(this).apply { addView(content) })
-        content.addView(text("Overlay — Navbar技術検証版",26f))
+        content.addView(text("Overlay — Statusbar技術検証版",26f))
         content.addView(text("Android 6〜10・Xperia向け。時計と電池は右上、背景透明・タッチ透過。"))
         val allowed=SystemSettings.canDrawOverlays(this)
         content.addView(text(if(allowed)"重ねて表示：許可済み" else "最初に「他のアプリの上に重ねて表示」を許可してください。"))
@@ -71,10 +71,17 @@ class MainActivity: Activity() {
         content.addView(text("ナビバー着色（技術検証）",20f))
         toggle("ナビバー着色を試す（初期OFF）","navbar_enabled")
         toggle("テーマ・アイコンから自動色を推定","navbar_auto")
+        toggle("上下バーを同色にする（初期OFF）","navbar_unified")
+        toggle("Recentsでは上下着色を停止（初期OFF）","navbar_recents_off")
         button("アプリ別の固定色") { chooseNavbarApp() }
-        content.addView(text("固定色 → 自動テーマ色 → アイコン代表色の順です。自動色OFFで未設定のアプリは着色しません。使用状況へのアクセスが必要です。縦画面・3ボタンでお試しください。横画面・バー非表示・判定不能時は従来表示へ戻します。ジェスチャー・分割画面・IME・OEM固有バーは保証外です。Navbar Apps等の着色アプリは停止してください。"))
+        content.addView(text("統一ONでは、固定色 → colorPrimaryDark → colorPrimary → アイコン代表色の順で同じ候補を上下へ使います。統一OFFは従来どおりNavbarだけを着色し、colorPrimaryを優先します。自動色OFFで未設定のアプリは着色しません。使用状況へのアクセスが必要です。縦画面・3ボタンでお試しください。横画面・バー非表示・判定不能時は安全に着色を止めます。"))
+        content.addView(text("Recents停止はSystemUIの既知Recents componentまたは端末設定のcomponentを完全一致で判定します。Quickstep端末ではHomeも無着色になる場合があります。判定不能時は誤停止を避けて着色を維持します。角丸・時計・電池は停止しません。"))
         content.addView(text("自動色は画面の採色ではなく推定で、ボタンの視認性のため明るさを抑えます。固定色は指定通りですが、OSのボタン色は変更できません。明るい色でボタンが見づらい場合は暗い色に変更するか着色をOFFにしてください。"))
-        if(settings.navbarEnabled())content.addView(text(OverlayService.runtime?.navbar?.let { "${it.reason} / ${it.source ?: "候補なし"}" } ?: "表示開始後に状態を確認できます"))
+        if(settings.navbarEnabled())content.addView(text(OverlayService.runtime?.let {
+            val top=it.statusbar?.let { top->"上: ${top.reason}" } ?: "上: OFF"
+            val recent=if(it.recentsTintSuppressed)" / Recents着色停止中" else ""
+            "${it.navbar?.reason ?: "下: 待機"} / ${it.navbar?.source ?: "候補なし"} / $top$recent"
+        } ?: "表示開始後に状態を確認できます"))
         toggle("互換表示方式（バーより背面）","modern")
         content.addView(text("標準方式はAndroid 6〜10向けの旧レイヤーです。表示できない機種は互換方式を試してください。互換方式ではシステムバーの上に角丸を描けません。Android 11以降は保証外です。"))
         content.addView(text("外観合わせ",20f))

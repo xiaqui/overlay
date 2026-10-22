@@ -14,15 +14,16 @@ class NavbarColors(private val context: Context) {
     }
     var loads=0;private set
     fun clear() { cache.clear() }
-    fun resolve(pkg: String,automatic: Boolean,fixed: Int?): NavbarColor? {
+    fun resolve(pkg: String,automatic: Boolean,fixed: Int?,preferPrimaryDark: Boolean=false): NavbarColor? {
         if(fixed!=null || !automatic)return NavbarPolicy.select(fixed,automatic,{null},{null})
-        cache[pkg]?.let { return it.color }
+        val key="$pkg:$preferPrimaryDark"
+        cache[key]?.let { return it.color }
         loads++
-        val value=NavbarPolicy.select(null,true,{themeColor(pkg)},{iconColor(pkg)})
-        cache[pkg]=Entry(value)
+        val value=NavbarPolicy.select(null,true,{themeColor(pkg,preferPrimaryDark)},{iconColor(pkg)})
+        cache[key]=Entry(value)
         return value
     }
-    internal fun themeColor(pkg: String): Int?=runCatching {
+    internal fun themeColor(pkg: String,preferPrimaryDark: Boolean=false): Int?=runCatching {
         val pm=context.packageManager
         val app=pm.getApplicationInfo(pkg,0)
         val res=pm.getResourcesForApplication(app)
@@ -30,8 +31,11 @@ class NavbarColors(private val context: Context) {
         val style=component?.let { pm.getActivityInfo(it,0).theme }?.takeIf { it!=0 } ?: app.theme
         if(style==0)return@runCatching null
         val theme=res.newTheme().apply { applyStyle(style,true) }
-        val custom=res.getIdentifier("colorPrimary","attr",pkg)
-        for(attr in intArrayOf(custom,android.R.attr.colorPrimary))if(attr!=0) {
+        val customDark=res.getIdentifier("colorPrimaryDark","attr",pkg)
+        val customPrimary=res.getIdentifier("colorPrimary","attr",pkg)
+        val attrs=if(preferPrimaryDark)intArrayOf(customDark,android.R.attr.colorPrimaryDark,customPrimary,android.R.attr.colorPrimary)
+            else intArrayOf(customPrimary,android.R.attr.colorPrimary)
+        for(attr in attrs)if(attr!=0) {
             val value=TypedValue()
             if(theme.resolveAttribute(attr,value,true) && value.type in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT && value.data ushr 24==255)
                 return@runCatching value.data
