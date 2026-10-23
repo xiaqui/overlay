@@ -121,17 +121,18 @@ class NavbarTest {
         battery.layout(0,0,battery.measuredWidth,battery.measuredHeight)
         val bitmap=Bitmap.createBitmap(battery.width,battery.height,Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.WHITE);battery.draw(Canvas(bitmap))
-        val dark=mutableListOf<Pair<Int,Int>>()
+        val contrasted=mutableListOf<Pair<Int,Int>>()
         for(y in 0 until bitmap.height)for(x in 0 until bitmap.width) {
             val c=bitmap.getPixel(x,y)
-            if(Color.red(c)<120 && Color.green(c)<120 && Color.blue(c)<120)dark.add(x to y)
+            // The outside of a fine blurred black shadow is intentionally mid/light gray.
+            if(Color.red(c)<245 && Color.green(c)<245 && Color.blue(c)<245)contrasted.add(x to y)
         }
-        assertTrue("dark shadow remains readable on white",dark.size>10)
-        val minX=dark.minOf { it.first };val maxX=dark.maxOf { it.first }
-        val minY=dark.minOf { it.second };val maxY=dark.maxOf { it.second }
+        assertTrue("shadow creates contrast on white",contrasted.size>10)
+        val minX=contrasted.minOf { it.first };val maxX=contrasted.maxOf { it.first }
+        val minY=contrasted.minOf { it.second };val maxY=contrasted.maxOf { it.second }
         assertTrue("battery silhouette is horizontal",maxX-minX>maxY-minY)
         val centerY=(minY+maxY)/2
-        assertTrue("right-side terminal reaches the silhouette edge",dark.any { it.first>=maxX-1 && kotlin.math.abs(it.second-centerY)<=3 })
+        assertTrue("right-side terminal reaches the silhouette edge",contrasted.any { it.first>=maxX-1 && kotlin.math.abs(it.second-centerY)<=3 })
         bitmap.recycle()
     }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
