@@ -1,3 +1,19 @@
+# 画面表示仕上げ PR作業記録（2026-10-23）
+
+基準は安定版候補 `19f5ea73c933cf150e864d6d4a934bddeb1560bc`、作業起点はその上の文書更新だけを含む最新main `c4c0108ca23a874df971c1b1ed33210f72e58a44`。新ブランチで時計・電池の負数位置、横電池、影、fontScale、アプリ別着色「なし」の5点だけを変更する。mainへのマージ・署名APK Releaseは倫の最終確認後に実施し、このPR作業では行わない。
+
+| 項目 | 現在値 |
+|---|---|
+| applicationId / version | com.xiaqui.overlay / versionCode 5 / 0.5.0-display-finish |
+| 自動試験 | PR CIでJVM・Lint・build、API23/24/26/28/29 instrumentationを実行予定 |
+| 独立レビュー | P2 1件（「なし」よりRecentsを先に評価すると透明下帯が残る）を修正。再レビューで追加P1/P2なし（静的） |
+| 実機 | 添付Z3TC画像4枚は外観基準として確認。新版APKのXperia 5機種実表示は未検証 |
+| 配送 | 対象外。既存Releaseと署名情報を変更しない |
+
+設計、保存互換、実機手順は [DISPLAY_FINISH_JA.md](DISPLAY_FINISH_JA.md)。PR URL、head SHA、CI run、レビュー結果はCI完了後に追記する。
+
+---
+
 # Navbar技術検証版・署名配布記録（2026-10-21）
 
 初期OFFのアプリ別固定色／任意のテーマ・アイコン推定色を追加。既存Service・UsageStats・pollを再利用し、
