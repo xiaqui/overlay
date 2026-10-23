@@ -23,11 +23,13 @@ class MainActivity: Activity() {
         })
     }
     private fun slider(label: String,key: String,min: Int,max: Int,default: Int) {
-        val title=text("$label: ${settings.number(key,default)} dp");content.addView(title)
+        val current=settings.number(key,default).coerceIn(min,max)
+        val unit=if(key=="size")"sp" else "dp"
+        val title=text("$label: $current $unit");content.addView(title)
         content.addView(SeekBar(this).apply {
-            this.max=max-min;progress=settings.number(key,default)-min
+            this.max=max-min;progress=current-min
             setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(bar: SeekBar,value: Int,fromUser: Boolean) { title.text="$label: ${value+min} dp" }
+                override fun onProgressChanged(bar: SeekBar,value: Int,fromUser: Boolean) { title.text="$label: ${value+min} $unit" }
                 override fun onStartTrackingTouch(bar: SeekBar) {}
                 override fun onStopTrackingTouch(bar: SeekBar) { settings.set(key,bar.progress+min) }
             })
@@ -36,7 +38,7 @@ class MainActivity: Activity() {
     private fun showSettings() {
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
         setContentView(ScrollView(this).apply { addView(content) })
-        content.addView(text("Overlay — Statusbar技術検証版",26f))
+        content.addView(text("Overlay — 画面表示仕上げ版",26f))
         content.addView(text("Android 6〜10・Xperia向け。時計と電池は右上、背景透明・タッチ透過。"))
         val allowed=SystemSettings.canDrawOverlays(this)
         content.addView(text(if(allowed)"重ねて表示：許可済み" else "最初に「他のアプリの上に重ねて表示」を許可してください。"))
@@ -55,8 +57,9 @@ class MainActivity: Activity() {
         toggle("全画面のときだけ","fullscreen")
         content.addView(text("ステータスバーが隠れたときに時計・電池を表示します。判定不能時は表示を維持します。機種差や一時的なバー表示に合わないアプリは、下の例外設定で調整できます。"))
         slider("文字サイズ","size",10,28,14)
-        slider("右端からの距離","x",0,100,4)
-        slider("上端からの距離","y",0,100,0)
+        slider("右端からの距離","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
+        slider("上端からの距離","y",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
+        content.addView(text("位置は -64〜100 dp。負数で右端・上端の外側へ寄せられます。表示が欠けた場合は0付近へ戻してください。文字サイズは基準spで、OSの文字サイズ倍率を1回だけ反映します。"))
         button("文字と電池の色") {
             AlertDialog.Builder(this).setTitle("表示色").setSingleChoiceItems(arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { dialog,i -> settings.set("color",i);dialog.dismiss() }.show()
         }
@@ -73,7 +76,7 @@ class MainActivity: Activity() {
         toggle("テーマ・アイコンから自動色を推定","navbar_auto")
         toggle("上下バーを同色にする（初期OFF）","navbar_unified")
         toggle("Recentsでは上下着色を停止（初期OFF）","navbar_recents_off")
-        button("アプリ別の固定色") { chooseNavbarApp() }
+        button("アプリ別の着色（自動／固定色／なし）") { chooseNavbarApp() }
         content.addView(text("統一ONでは、固定色 → colorPrimaryDark → colorPrimary → アイコン代表色の順で同じ候補を上下へ使います。統一OFFは従来どおりNavbarだけを着色し、colorPrimaryを優先します。自動色OFFで未設定のアプリは着色しません。使用状況へのアクセスが必要です。縦画面・3ボタンでお試しください。横画面・バー非表示・判定不能時は安全に着色を止めます。"))
         content.addView(text("Recents停止はSystemUIの既知Recents componentまたは端末設定のcomponentを完全一致で判定します。Quickstep端末ではHomeも無着色になる場合があります。判定不能時は誤停止を避けて着色を維持します。角丸・時計・電池は停止しません。"))
         content.addView(text("自動色は画面の採色ではなく推定で、ボタンの視認性のため明るさを抑えます。固定色は指定通りですが、OSのボタン色は変更できません。明るい色でボタンが見づらい場合は暗い色に変更するか着色をOFFにしてください。"))
@@ -85,7 +88,7 @@ class MainActivity: Activity() {
         toggle("互換表示方式（バーより背面）","modern")
         content.addView(text("標準方式はAndroid 6〜10向けの旧レイヤーです。表示できない機種は互換方式を試してください。互換方式ではシステムバーの上に角丸を描けません。Android 11以降は保証外です。"))
         content.addView(text("外観合わせ",20f))
-        content.addView(text("初期値は参考画面の縦型電池＋右端時計を基準にしています。スクリーンショットの常時取得はせず、白・黒の全画面で位置と大きさを手動調整します。画面密度やOS設定による差は上のスライダーで合わせてください。"))
+        content.addView(text("初期値はXperia風の横型電池（右側端子）＋右端時計を基準にしています。スクリーンショットの常時取得はせず、白・黒の全画面で位置と大きさを手動調整します。画面密度やOS設定による差は上のスライダーで合わせてください。"))
         button("白背景の全画面で確認") { startActivity(Intent(this,PreviewActivity::class.java).putExtra("dark",false)) }
         button("黒背景の全画面で確認") { startActivity(Intent(this,PreviewActivity::class.java).putExtra("dark",true)) }
         button("電池の最適化設定") { startActivity(Intent(SystemSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
@@ -108,23 +111,34 @@ class MainActivity: Activity() {
         val pm=packageManager
         val apps=pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0)
             .distinctBy { it.activityInfo.packageName }.sortedBy { it.loadLabel(pm).toString() }
-        AlertDialog.Builder(this).setTitle("ナビバーの固定色").setItems(apps.map { it.loadLabel(pm).toString() }.toTypedArray()) { _,i ->
+        AlertDialog.Builder(this).setTitle("アプリ別のバー着色").setItems(apps.map { it.loadLabel(pm).toString() }.toTypedArray()) { _,i ->
             val pkg=apps[i].activityInfo.packageName
-            val entry=EditText(this).apply {
-                setSingleLine();hint="#RRGGBB（例 #304050）"
-                setText(settings.navbarColor(pkg)?.let { "#%06X".format(it and 0xffffff) } ?: "")
-            }
-            val dialog=AlertDialog.Builder(this).setTitle(apps[i].loadLabel(pm)).setView(entry)
-                .setPositiveButton("保存",null).setNeutralButton("固定色を解除") { _,_->settings.setNavbarColor(pkg,null) }.setNegativeButton("戻る",null).create()
-            dialog.setOnShowListener {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                    val value=entry.text.toString().trim()
-                    if(!Regex("#[0-9a-fA-F]{6}").matches(value))entry.error="#RRGGBB形式で入力してください"
-                    else { settings.setNavbarColor(pkg,android.graphics.Color.parseColor(value));dialog.dismiss() }
+            val title=apps[i].loadLabel(pm)
+            AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(
+                arrayOf("自動","固定色","なし"),settings.navbarMode(pkg)) { modeDialog,mode ->
+                when(mode) {
+                    Settings.NAVBAR_AUTO -> { settings.setNavbarColor(pkg,null);modeDialog.dismiss() }
+                    Settings.NAVBAR_NONE -> { settings.setNavbarNone(pkg);modeDialog.dismiss() }
+                    else -> { modeDialog.dismiss();showNavbarColor(title,pkg) }
                 }
-            }
-            dialog.show()
+            }.setNegativeButton("戻る",null).show()
         }.show()
+    }
+    private fun showNavbarColor(title: CharSequence,pkg: String) {
+        val entry=EditText(this).apply {
+            setSingleLine();hint="#RRGGBB（例 #304050）"
+            setText(settings.navbarColor(pkg)?.let { "#%06X".format(it and 0xffffff) } ?: "")
+        }
+        val dialog=AlertDialog.Builder(this).setTitle("$title：固定色").setView(entry)
+            .setPositiveButton("保存",null).setNegativeButton("戻る",null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value=entry.text.toString().trim()
+                if(!Regex("#[0-9a-fA-F]{6}").matches(value))entry.error="#RRGGBB形式で入力してください"
+                else { settings.setNavbarColor(pkg,android.graphics.Color.parseColor(value));dialog.dismiss() }
+            }
+        }
+        dialog.show()
     }
 }
 
