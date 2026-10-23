@@ -90,6 +90,7 @@ class NavbarTest {
         assertEquals("status and navbar use one composed RGB",expected,top)
         assertEquals("status and navbar use one composed RGB",expected,bottom)
     }
+    /** Display-finish pixels are emulator evidence; Xperia acceptance remains a device check. */
     @Test fun displayFinishSettingsFontScaleHorizontalBatteryAndShadow() {
         settings.set("x",-32);settings.set("y",-20)
         assertEquals(-32,Settings(ctx).offset("x",4));assertEquals(-20,Settings(ctx).offset("y",0))
