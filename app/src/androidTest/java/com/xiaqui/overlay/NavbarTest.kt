@@ -2,12 +2,14 @@ package com.xiaqui.overlay
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.ParcelFileDescriptor
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -88,6 +90,50 @@ class NavbarTest {
         assertEquals("status and navbar use one composed RGB",expected,top)
         assertEquals("status and navbar use one composed RGB",expected,bottom)
     }
+    @Test fun displayFinishSettingsFontScaleHorizontalBatteryAndShadow() {
+        settings.set("x",-32);settings.set("y",-20)
+        assertEquals(-32,Settings(ctx).offset("x",4));assertEquals(-20,Settings(ctx).offset("y",0))
+        settings.set("x",-999);settings.set("y",999)
+        assertEquals(Settings.MIN_OFFSET_DP,settings.offset("x",4));assertEquals(Settings.MAX_OFFSET_DP,settings.offset("y",0))
+
+        val pkg="legacy.fixed.app";val fixed=0xff345678.toInt()
+        settings.prefs.edit().putInt("navbar:$pkg",fixed).remove("navbarMode:$pkg").commit()
+        assertEquals("old fixed-color data remains fixed",Settings.NAVBAR_FIXED,settings.navbarMode(pkg))
+        settings.setNavbarNone(pkg)
+        assertEquals(Settings.NAVBAR_NONE,settings.navbarMode(pkg));assertNull(settings.navbarColor(pkg))
+        settings.setNavbarColor(pkg,fixed)
+        assertEquals(Settings.NAVBAR_FIXED,settings.navbarMode(pkg));assertEquals(fixed,settings.navbarColor(pkg))
+        settings.setNavbarColor(pkg,null);assertEquals(Settings.NAVBAR_AUTO,settings.navbarMode(pkg))
+
+        settings.set("size",14);settings.set("clock",true);settings.set("battery",true)
+        fun measuredHeight(fontScale: Float): Int {
+            val config=Configuration(ctx.resources.configuration).apply { this.fontScale=fontScale }
+            val view=StatusView(ctx.createConfigurationContext(config),settings)
+            view.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+            return view.measuredHeight
+        }
+        val normal=measuredHeight(1f);val large=measuredHeight(1.5f)
+        assertTrue("OS fontScale enlarges status once: $normal -> $large",large>normal*1.35f)
+
+        settings.set("clock",false);settings.set("battery",true);settings.set("color",0)
+        val battery=StatusView(ctx,settings).apply { percent=50 }
+        battery.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+        battery.layout(0,0,battery.measuredWidth,battery.measuredHeight)
+        val bitmap=Bitmap.createBitmap(battery.width,battery.height,Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.WHITE);battery.draw(Canvas(bitmap))
+        val dark=mutableListOf<Pair<Int,Int>>()
+        for(y in 0 until bitmap.height)for(x in 0 until bitmap.width) {
+            val c=bitmap.getPixel(x,y)
+            if(Color.red(c)<120 && Color.green(c)<120 && Color.blue(c)<120)dark.add(x to y)
+        }
+        assertTrue("dark shadow remains readable on white",dark.size>10)
+        val minX=dark.minOf { it.first };val maxX=dark.maxOf { it.first }
+        val minY=dark.minOf { it.second };val maxY=dark.maxOf { it.second }
+        assertTrue("battery silhouette is horizontal",maxX-minX>maxY-minY)
+        val centerY=(minY+maxY)/2
+        assertTrue("right-side terminal reaches the silhouette edge",dark.any { it.first>=maxX-1 && kotlin.math.abs(it.second-centerY)<=3 })
+        bitmap.recycle()
+    }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
         val colors=NavbarColors(ctx)
         assertEquals("foreign APK application theme",0xff426a88.toInt(),colors.themeColor(inst.context.packageName))
@@ -164,6 +210,12 @@ class NavbarTest {
             it.foreground==ctx.packageName && it.navbar?.active==true && it.statusbar?.active==true && it.navbar?.color==red && it.statusbar?.color==red
         }==true }
         assertUnifiedPixels(red)
+        main { settings.setNavbarNone(ctx.packageName) }
+        waitFor("per-app none stops both tints") { OverlayService.runtime?.let {
+            it.foreground==ctx.packageName && it.navbar?.active==false && it.navbar?.color==null && it.statusbar?.active!=true &&
+                !it.recentsTintSuppressed && it.locations.size==4
+        }==true }
+        main { settings.setNavbarColor(ctx.packageName,red) };active();waitFor("fixed tint restores after none") { OverlayService.runtime?.statusbar?.active==true }
         var unifiedShot=inst.uiAutomation.takeScreenshot()!!
         val cornerRadius=(settings.number("radius",18)*ctx.resources.displayMetrics.density).toInt()
         val hasBlackUpperCorner=(0 until cornerRadius).any { y->(0 until cornerRadius).any { x->unifiedShot.getPixel(x,y)==Color.BLACK } }
