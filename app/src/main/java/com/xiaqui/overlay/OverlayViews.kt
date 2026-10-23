@@ -31,7 +31,6 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         paint.color = when (settings.number("color", 0)) { 1 -> Color.LTGRAY; 2 -> Color.DKGRAY; else -> Color.WHITE }
         paint.style = Paint.Style.FILL
         paint.setShadowLayer(0.9f*d, 0f, 0.35f*d, 0xD8000000.toInt())
-        val y = (height-size)/2
         var x = 3*d
         if (settings.bool("battery", true)) {
             val bw = size*0.94f
