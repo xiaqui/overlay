@@ -1,4 +1,4 @@
-name: Overlay Statusbar + Recents prototype checks and signed Release
+name: Overlay display finish checks and signed Release
 on:
   workflow_dispatch:
   push:
@@ -136,17 +136,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir delivery
-          cp app/build/outputs/apk/release/app-release.apk delivery/Overlay-Statusbar-Test.apk
+          cp app/build/outputs/apk/release/app-release.apk delivery/Overlay-Display-Finish.apk
           tools="$ANDROID_HOME/build-tools/35.0.0"
-          "$tools/apksigner" verify --verbose --print-certs delivery/Overlay-Statusbar-Test.apk > delivery/APK-VERIFICATION.txt
-          "$tools/aapt" dump badging delivery/Overlay-Statusbar-Test.apk > "$RUNNER_TEMP/badging.txt"
+          "$tools/apksigner" verify --verbose --print-certs delivery/Overlay-Display-Finish.apk > delivery/APK-VERIFICATION.txt
+          "$tools/aapt" dump badging delivery/Overlay-Display-Finish.apk > "$RUNNER_TEMP/badging.txt"
           grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/badging.txt"
-          grep -q "versionCode='4'" "$RUNNER_TEMP/badging.txt"
-          grep -q "versionName='0.4.0-statusbar-test'" "$RUNNER_TEMP/badging.txt"
+          grep -q "versionCode='5'" "$RUNNER_TEMP/badging.txt"
+          grep -q "versionName='0.5.0-display-finish'" "$RUNNER_TEMP/badging.txt"
           grep -q "sdkVersion:'23'" "$RUNNER_TEMP/badging.txt"
           grep -q "targetSdkVersion:'25'" "$RUNNER_TEMP/badging.txt"
           if grep -q 'application-debuggable' "$RUNNER_TEMP/badging.txt"; then exit 1; fi
-          if "$tools/aapt" dump permissions delivery/Overlay-Statusbar-Test.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
+          if "$tools/aapt" dump permissions delivery/Overlay-Display-Finish.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
           keytool -exportcert -keystore "$RUNNER_TEMP/overlay.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > "$RUNNER_TEMP/cert.der"
           expected=$(sha256sum "$RUNNER_TEMP/cert.der" | cut -d ' ' -f1)
           actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' delivery/APK-VERIFICATION.txt)
@@ -159,15 +159,14 @@ jobs:
           baseline=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/baseline-cert.txt")
           test "$actual" = "$baseline"
           printf '%s\n' "$GITHUB_SHA" > delivery/SOURCE_SHA.txt
-          (cd delivery && sha256sum Overlay-Statusbar-Test.apk > SHA256SUMS)
-          tag="overlay-statusbar-test-${GITHUB_SHA:0:8}"
+          (cd delivery && sha256sum Overlay-Display-Finish.apk > SHA256SUMS)
+          tag="overlay-display-finish-${GITHUB_SHA:0:8}"
           cat > delivery/RELEASE_NOTES.md <<NOTES
-          Statusbar + Recents technical prototype / versionCode 4 / upgrades Overlay 0.2.0 with the same key.
-          Both new settings are OFF by default. Portrait + 3-button navigation is the primary scope.
-          Unified: fixed app color > colorPrimary > icon representative > no tint (same as prior Navbar auto color).
-          Exact-component Recents detection stops tint only; corners, clock and battery stay active.
-          Xperia status pixels, notification-icon layering and OEM Recents acceptance are pending.
-          Existing Releases are unchanged. See docs/STATUSBAR_RECENTS_PROTOTYPE_JA.md.
+          Display finish candidate / versionCode 5 / upgrades Overlay 0.2.0 with the same key.
+          Adds negative position offsets, horizontal Xperia-like battery, stronger fine shadow,
+          OS fontScale support, and per-app Auto / Fixed / None tint selection.
+          Existing corners, unified bars, Recents suppression and fullscreen behavior remain.
+          Xperia pixel acceptance is pending. Existing Releases are unchanged. See docs/DISPLAY_FINISH_JA.md.
           Source: $GITHUB_SHA
           Workflow: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           $(cat delivery/SHA256SUMS)
@@ -180,9 +179,9 @@ jobs:
               gh release download "$tag" --pattern '*' --dir "$RUNNER_TEMP/published"
               cmp delivery/SOURCE_SHA.txt "$RUNNER_TEMP/published/SOURCE_SHA.txt"
               (cd "$RUNNER_TEMP/published" && sha256sum -c SHA256SUMS)
-              "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/published/Overlay-Statusbar-Test.apk" > "$RUNNER_TEMP/published-cert.txt"
+              "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/published/Overlay-Display-Finish.apk" > "$RUNNER_TEMP/published-cert.txt"
               test "$expected" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/published-cert.txt")"
-              "$tools/aapt" dump badging "$RUNNER_TEMP/published/Overlay-Statusbar-Test.apk" > "$RUNNER_TEMP/published-badging.txt"
+              "$tools/aapt" dump badging "$RUNNER_TEMP/published/Overlay-Display-Finish.apk" > "$RUNNER_TEMP/published-badging.txt"
               grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/published-badging.txt"
               grep -q "sdkVersion:'23'" "$RUNNER_TEMP/published-badging.txt"
               cat "$RUNNER_TEMP/published/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
@@ -190,14 +189,14 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay Statusbar Test (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay Display Finish (${GITHUB_SHA:0:8})" --notes-file delivery/RELEASE_NOTES.md
           fi
-          gh release upload "$tag" delivery/Overlay-Statusbar-Test.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
+          gh release upload "$tag" delivery/Overlay-Display-Finish.apk delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt --clobber
           mkdir "$RUNNER_TEMP/retrieved"
-          gh release download "$tag" --pattern Overlay-Statusbar-Test.apk --dir "$RUNNER_TEMP/retrieved"
-          cmp delivery/Overlay-Statusbar-Test.apk "$RUNNER_TEMP/retrieved/Overlay-Statusbar-Test.apk"
+          gh release download "$tag" --pattern Overlay-Display-Finish.apk --dir "$RUNNER_TEMP/retrieved"
+          cmp delivery/Overlay-Display-Finish.apk "$RUNNER_TEMP/retrieved/Overlay-Display-Finish.apk"
           (cd "$RUNNER_TEMP/retrieved" && sha256sum -c "$GITHUB_WORKSPACE/delivery/SHA256SUMS")
-          "$tools/apksigner" verify "$RUNNER_TEMP/retrieved/Overlay-Statusbar-Test.apk"
+          "$tools/apksigner" verify "$RUNNER_TEMP/retrieved/Overlay-Display-Finish.apk"
           gh release edit "$tag" --draft=false --prerelease
           cat delivery/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
           echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

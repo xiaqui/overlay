@@ -1,3 +1,21 @@
+# 画面表示仕上げ PR作業記録（2026-10-23）
+
+基準は安定版候補 `19f5ea73c933cf150e864d6d4a934bddeb1560bc`、作業起点はその上の文書更新だけを含む最新main `c4c0108ca23a874df971c1b1ed33210f72e58a44`。新ブランチで時計・電池の負数位置、横電池、影、fontScale、アプリ別着色「なし」の5点だけを変更する。mainへのマージ・署名APK Releaseは倫の最終確認後に実施し、このPR作業では行わない。
+
+| 項目 | 現在値 |
+|---|---|
+| applicationId / version | com.xiaqui.overlay / versionCode 5 / 0.5.0-display-finish |
+| PR / ブランチ | https://github.com/xiaqui/overlay/pull/12 / `work/display-finish-20261023` |
+| コード検証SHA / CI | `7f2c33ed290dbee89a50ea1ed4a3d43f78006712` / https://github.com/xiaqui/overlay/actions/runs/39909393091 — success |
+| 自動試験 | JVM・Lint・debug/androidTest build成功。API23/24/26/28/29で各7 instrumentation成功 |
+| 独立レビュー | P2 1件（「なし」よりRecentsを先に評価すると透明下帯が残る）を修正。再レビューで追加P1/P2なし（静的） |
+| 実機 | 添付Z3TC画像4枚は外観基準として確認。新版APKのXperia 5機種実表示は未検証 |
+| 配送 | 対象外。既存Releaseと署名情報を変更しない |
+
+初回run 39908662350はAPI24で、細い半透明影をRGB<120だけで数える試験閾値が失敗した。アプリの影パラメータは変えず、白背景との差（RGB<245）を数える試験へ訂正し、最終コードSHAで全5 OSを再実行して成功した。失敗runを合格扱いしない。設計、保存互換、実機手順は [DISPLAY_FINISH_JA.md](DISPLAY_FINISH_JA.md)。
+
+---
+
 # Navbar技術検証版・署名配布記録（2026-10-21）
 
 初期OFFのアプリ別固定色／任意のテーマ・アイコン推定色を追加。既存Service・UsageStats・pollを再利用し、

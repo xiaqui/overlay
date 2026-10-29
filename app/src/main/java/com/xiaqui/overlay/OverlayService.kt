@@ -156,7 +156,7 @@ class OverlayService : Service() {
                 status=StatusView(this,settings).apply { percent=battery;charging=this@OverlayService.charging }
                 val density=resources.displayMetrics.density
                 val p=params(-2,-2,Gravity.TOP or Gravity.RIGHT).apply {
-                    x=(settings.number("x",4)*density).toInt();y=(settings.number("y",0)*density).toInt()
+                    x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
                 }
                 add(status!!,p)
                 if(settings.needsBars())attachBarObservation()
@@ -230,6 +230,13 @@ class OverlayService : Service() {
             navbarReason="使用状況アクセス/前面アプリを確認してください";navbarCandidate=null;navbarKey=null
             return TintResolution(null,false)
         }
+        // Explicit per-app NONE wins before the temporary Recents policy. It must remove the
+        // Navbar band instead of replacing it with the transparent Recents corner owner.
+        val appMode=settings.navbarMode(pkg)
+        if(appMode==Settings.NAVBAR_NONE) {
+            navbarReason="アプリ別設定「なし」（OS・アプリ本来のバー表示）";navbarCandidate=null;navbarKey="none:$pkg"
+            return TintResolution(null,false)
+        }
         if(settings.suppressRecentsTint()) {
             val detector=recentsDetector ?: RecentsDetector(this).also { recentsDetector=it }
             if(detector.shouldSuppress(true,foregroundTarget)) {
@@ -238,11 +245,11 @@ class OverlayService : Service() {
             }
         }
         val fixed=settings.navbarColor(pkg);val automatic=settings.bool("navbar_auto")
-        val key="$pkg:$fixed:$automatic:${settings.unifiedBars()}"
+        val key="$pkg:$appMode:$fixed:$automatic"
         if(key!=navbarKey) {
             navbarCandidate=if(fixed==null && !automatic)null else {
                 val colors=navbarColors ?: NavbarColors(this).also { navbarColors=it }
-                colors.resolve(pkg,automatic,fixed) // Keep the original Navbar color for both bars.
+                colors.resolve(pkg,automatic,fixed) // Preserve main's Navbar candidate for both bars.
             }
             navbarKey=key
         }
@@ -260,7 +267,7 @@ class OverlayService : Service() {
         val bottom=mask and 2!=0 && r>0
         val spec=NavbarSpec(display.x,display.y,bars.bottom,r,bottom,mode==Policy.BOTTOM_INSIDE || mode==Policy.BOTH_INSIDE,color,!tint.suppressed)
         val upperExtent=maxOf(bars.top+(if(mask and 1!=0)r else 0),
-            (status?.height ?: 0)+(settings.number("y",0)*resources.displayMetrics.density).toInt())
+            (status?.height ?: 0)+(settings.offset("y",0)*resources.displayMetrics.density).toInt())
         if(spec.top<=upperExtent) { navbarReason="上側表示領域との重なりを避けて従来表示";return null }
         return spec
     }

@@ -12,7 +12,8 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
     var percent = -1
     var charging = false
     private val d get() = resources.displayMetrics.density
-    private val size get() = settings.number("size", 14) * d
+    // The saved value is a base sp size. scaledDensity applies the OS fontScale once.
+    private val size get() = settings.number("size", 14) * resources.displayMetrics.scaledDensity
     init { setLayerType(LAYER_TYPE_SOFTWARE, null); importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
     private fun clockText(): String = DateFormat.getTimeFormat(context).format(Date())
     private fun textWidth(): Float {
@@ -21,44 +22,45 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         return if (settings.bool("clock", true)) paint.measureText(clockText()) else 0f
     }
     override fun onMeasure(w: Int, h: Int) {
-        val batteryWidth = if (settings.bool("battery", true)) size * 0.9f else 0f
-        val gap = if (batteryWidth > 0 && settings.bool("clock", true)) 5 * d else 0f
-        setMeasuredDimension(kotlin.math.ceil(textWidth() + batteryWidth + gap + 6*d).toInt().coerceAtLeast(1), (size*1.55f+6*d).toInt())
+        val batteryWidth = if (settings.bool("battery", true)) size * 1.18f else 0f
+        val gap = if (batteryWidth > 0 && settings.bool("clock", true)) 4 * d else 0f
+        setMeasuredDimension(kotlin.math.ceil(textWidth() + batteryWidth + gap + 6*d).toInt().coerceAtLeast(1), (size*1.35f+6*d).toInt())
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         paint.color = when (settings.number("color", 0)) { 1 -> Color.LTGRAY; 2 -> Color.DKGRAY; else -> Color.WHITE }
         paint.style = Paint.Style.FILL
-        paint.setShadowLayer(1.1f*d, 0f, 0.6f*d, 0xB0000000.toInt())
-        val y = (height-size)/2
+        paint.setShadowLayer(0.9f*d, 0f, 0.35f*d, 0xD8000000.toInt())
         var x = 3*d
         if (settings.bool("battery", true)) {
-            val bw = size*0.58f
-            val bh = size*1.02f
-            // Xperia-style upright battery: terminal, outline, proportional interior.
-            canvas.drawRect(x+bw*0.3f, y, x+bw*0.7f, y+1.5f*d, paint)
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = 0.8f*d
-            canvas.drawRect(x, y+2*d, x+bw, y+bh, paint)
+            val bw = size*0.94f
+            val bh = size*0.56f
+            val by = (height-bh)/2f
+            val cap = maxOf(1.2f*d,size*0.08f)
+            // Original Xperia-like horizontal geometry: body, then a terminal on the right.
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = maxOf(0.8f*d,size*0.045f)
+            canvas.drawRect(x,by,x+bw,by+bh,paint)
             paint.style = Paint.Style.FILL
+            canvas.drawRect(x+bw,by+bh*0.31f,x+bw+cap,by+bh*0.69f,paint)
             if (percent >= 0) {
-                val bottom = y+bh-1.3f*d
-                val top = y+3.3f*d
-                canvas.drawRect(x+1.3f*d, bottom-(bottom-top)*percent/100f, x+bw-1.3f*d, bottom, paint)
+                val inset=maxOf(1.2f*d,size*0.07f)
+                val right=x+inset+(bw-2*inset)*percent.coerceIn(0,100)/100f
+                canvas.drawRect(x+inset,by+inset,right,by+bh-inset,paint)
             }
             if (charging) {
                 paint.clearShadowLayer(); paint.color = Color.DKGRAY
                 val bolt = Path().apply {
-                    moveTo(x+bw*0.65f,y+bh*0.25f); lineTo(x+bw*0.25f,y+bh*0.6f)
-                    lineTo(x+bw*0.5f,y+bh*0.6f); lineTo(x+bw*0.35f,y+bh*0.95f)
-                    lineTo(x+bw*0.8f,y+bh*0.45f); lineTo(x+bw*0.55f,y+bh*0.45f); close()
+                    moveTo(x+bw*0.58f,by+bh*0.08f); lineTo(x+bw*0.30f,by+bh*0.56f)
+                    lineTo(x+bw*0.49f,by+bh*0.56f); lineTo(x+bw*0.40f,by+bh*0.94f)
+                    lineTo(x+bw*0.72f,by+bh*0.43f); lineTo(x+bw*0.53f,by+bh*0.43f); close()
                 }
                 canvas.drawPath(bolt,paint)
             }
-            x += size*0.9f + if (settings.bool("clock", true)) 5*d else 0f
+            x += size*1.18f + if (settings.bool("clock", true)) 4*d else 0f
         }
         if (settings.bool("clock", true)) {
             paint.color = when(settings.number("color",0)) {1->Color.LTGRAY;2->Color.DKGRAY;else->Color.WHITE}
-            paint.setShadowLayer(1.1f*d,0f,0.6f*d,0xB0000000.toInt())
+            paint.setShadowLayer(0.9f*d,0f,0.35f*d,0xD8000000.toInt())
             paint.textSize=size; paint.typeface=Typeface.create("sans-serif",Typeface.NORMAL)
             canvas.drawText(clockText(), x, height/2f-(paint.ascent()+paint.descent())/2f, paint)
         }
@@ -79,3 +81,4 @@ class CornerView(context: Context, private val corner: Int) : View(context) {
         canvas.drawPath(p,paint);canvas.restore()
     }
 }
+
