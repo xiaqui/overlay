@@ -177,8 +177,7 @@ class Issue4Test {
                     it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
             }==true
         }
-        main { preview!!.finish() }
-        launch("normal")
+        shell("input keyevent KEYCODE_BACK")
         waitFor("returning app restores its clock-only rule") {
             OverlayService.runtime?.let {
                 it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
