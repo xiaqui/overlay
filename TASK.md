@@ -1,8 +1,38 @@
-# Current task
+# Current task: Overlay表示仕上げ・4項目連続実装（2026-11-06）
 
-There is no active task on `main`.
+## 対象と実行方式
 
-The previously listed display-finish items were implemented in their dedicated pull request and must not be restarted from this file. Other open documentation or prototype PRs retain their own branch scope; do not combine them.
+repo: `xiaqui/overlay`。担当: **ChatGPT Workで、以下の4工程を1回の連続作業として順番に完遂**する。社長が指示した順序を崩さない。各工程で実装・局所テスト・必要な修正を済ませ、次工程へ進む。最後に全体回帰・独立レビュー・P1/P2修正・PR作成/更新・作業記録まで行う。工程ごとに独立したWorkやPRを立てない。前工程の重大不具合は修正してから進む。
 
-Before new work, inspect latest `main`, open PRs/issues, `docs/SPEC_JA.md`, `docs/ISSUE4_JA.md`, and `docs/WORK_PROGRESS.md`. Then replace this file with one explicit task including the target branch/PR, Android versions, device matrix, build/review requirements, delivery policy, and merge authorization.
+着手前にこの最新main、`AGENTS.md`、`docs/SPEC_JA.md`、`docs/ISSUE4_JA.md`、`docs/DISPLAY_FINISH_JA.md`、`docs/TODO_JA.md`、`docs/WORK_PROGRESS.md`、`docs/DEVICE_TEST_JA.md`、現行ソース、open PR/Issue、既存リリース経路を確認する。別の進行中PRの変更を無断で取り込まない。作業ブランチは**このTASKを含む最新mainから新規作成**し、4工程を**単一の実装PR**へまとめる。作業途中で競合が発生したらmain/PR差分を再取得して安全に解決する。
 
+対象はAndroid **6/7/8/9/10**（API 23/24/26/28/29）、優先実機はZ3 Tablet Compact（6）、Z4 Tablet（7）、XZ1 Compact（8）、Rakuten Mini（9）、Rakuten Hand（10）。既存の `com.xiaqui.overlay`、旧版からの上書き互換・署名・設定保存を維持する。
+
+## 事前確認：社長が完了と報告した旧「3」＝電池残量の視認性
+
+**今回の実装範囲に含めない。** 社長は白背景での電池残量の視認性改善は「できている」と報告済み。ソース上は `StatusView` が残量を塗りつぶし幅で表現しているが、`docs/TODO_JA.md` に未完了のまま残っているため、作業開始時に最新main、該当コード/テスト/PR/実機報告を照合し、実装済み・実機での見え方・未確認事項を明確にする。明確に確認できたらTODOを完了扱いに整理する。確認できない点があっても**本タスクへ追加実装せず**、矛盾を作業記録へ残す。社長の「済み」を根拠なく未実装へ戻さない。
+
+## 工程1：時計・電池の影の見直し（最初）
+
+元祖浮遊時計と自作Overlayの白背景実機比較から、元祖の方が時計数字を読み取りやすいという報告がある。仮説は「元祖の影が右下寄りで、自作Overlayは周囲全方向に影が回り輪郭が二重に見える」。**写真だけで元祖の影方向を確定しない**。まず現行 `StatusView` の文字・電池共通 `Paint.setShadowLayer`（現状：半径0.9dp、dx=0、dy=+0.35dp、黒alpha D8）と描画を確認し、文字自体の線幅・色・サイズを不用意に変更せず、**右下への小さなオフセット・最小限のぼかし**を試す。全方向の縁取り感を抑えつつ、白地でも文字の輪郭が明瞭、黒地でも過度に滲まないことを重視する。時計と電池で影の統一感を維持。現行値・新値・比較理由を記録し、白/黒プレビューと文字（特に1/7/0/3）・電池の回帰試験を追加。元祖APKのコードやアセットをコピーしない。
+
+## 工程2：時計の左／右配置切り替え
+
+Rakuten Hand（Android 10）は純正時計が左、既存Xperiaは右の例がある。**OSバージョンで決め打ちしない**。設定画面へ「時計の配置：右／左」を追加し、既存利用者は従来の右寄せを維持する。時計と電池の描画・ウィンドウ配置を分離または適切に配置計算し、**左時計＋右電池**と従来の右側時計＋電池の両方を実現。時計・電池それぞれのON/OFF、座標（負数含む）、OS fontScale、回転、画面端、通常/没入型、タッチ透過を確認。左にしただけで電池が左へ移動したり、ステータスバー/他のアプリの操作領域を覆わない設計とする。既存保存値は維持し、新設定のデフォルトは右。
+
+## 工程3：Android 6で横型電池の方向を修正
+
+Z3TC（Android 6）で、Overlayの横型電池の端子位置・残量増加方向が純正と逆に見えるという社長の実機報告。現行コードは端子右・残量左→右。まず純正の向きを**検証可能な根拠で確認**し、他端末の正常表示を壊さない実装（必要なら端末単位で切替可能な「電池の向き：通常／反転」設定）を採用する。OS=6だけを根拠に全機種へ強制反転しない。端子、充電マーク、残量の進行方向を一貫して変更し、0/20/50/80/100%、充電中、白/黒背景、旧設定との互換を検証する。純正向きの確証が得られない場合は初期値を現状維持して明示的切替を提供し、実機判断を未確認として記録する。
+
+## 工程4：全画面判定のアプリ別例外へ時計のみ／電池のみ追加
+
+現行のアプリ別「自動／表示／非表示」の意味、保存形式、`Policy.statusVisible` と `OverlayService` における判定・描画を確認する。そこに**「時計のみ表示」「電池のみ表示」**を追加し、アプリごとに表示要素を制御できるようにする。従来の自動／両方表示／両方非表示と既存キー/値を壊さない。全体設定でOFFの時計/電池を、アプリ例外で勝手にONにしない。**全画面のときだけ**の設定・通常時・全画面判定不能時の既存動作を維持し、常時表示モードの既存意味も壊さない。アプリ切替、保存/復元、回転、画面OFF/ON、使用状況アクセス取消を試験する。時計・電池が個別表示になっても余分な不可視/タッチ遮断窓を残さない。
+
+## 安全境界・検証・完了条件
+
+- 既存の角丸5状態、アプリ別Navbar「自動／固定色／なし」、上下統一着色、Recents停止、全画面検出の安全側フォールバック、低負荷/分単位更新/消灯中停止、旧2006優先・拒否時2038、最小オーバーレイ・タッチ透過を維持する。Navbar着色がRakuten Mini等で合わない既存課題は**今回の4工程には混ぜない**。
+- 新規ネットワーク通信、広告/分析SDK、MediaProjection、AccessibilityService、不要な権限・常駐Serviceを増やさない。署名鍵、個人情報、スクリーンショットはコミットしない。Android11+対応や別プロジェクトへの波及は今回の範囲外。
+- 各工程で単体/表示試験を追加し、最終的に `testDebugUnitTest`、`lintDebug`、`assembleDebug`、可能な `assembleDebugAndroidTest` とAPI23/24/26/28/29 instrumented regressionを実施。環境/利用枠により不可なら代替のローカル検証を実施し、**未実施を合格と書かない**。必要なくGitHub Actionsを乱発しない。
+- 全工程が揃った最終headの差分を別担当で独立レビューし、P0/P1は必ず修正、P2は修正または根拠付きで整理。修正後の対象テストと重点再レビューを実施。PRは工程別の変更・試験・未検証事項が追える説明にする。
+- `docs/TODO_JA.md` は本PRで実装した4件と事前確認した電池残量の項目について、証拠のあるものだけ完了に更新。`docs/WORK_PROGRESS.md` と必要な検収文書へ実装、試験、独立レビュー、残る実機確認とSHAを記録。実機確認は社長の実測が必要なので推測で合格にしない。
+- **この作業は実装・PR作成と検収まで。mainへのmerge、Release/Artifactの正式配布、Google Drive差し替えは社長の別途承認なしに実行しない。** 既存署名/配布経路は変更しない。完成時にPR URL、branch、head SHA、テスト実績、レビュー、配送未実施、社長が見るべき実機差分を簡潔に報告する。
