@@ -4,7 +4,7 @@
 
 repo: `xiaqui/overlay`。担当: **ChatGPT Workで、以下の4工程を1回の連続作業として順番に完遂**する。社長が指示した順序を崩さない。**工程ごとに別ブランチ・別PR（計4 PR）**を作り、それぞれ実装・局所/必要な全体回帰テスト・独立レビュー・P1/P2修正・作業記録まで完了する。次工程は前工程のマージ後に最新mainから新規ブランチを切り、差分・検証の独立性を保つ。**1つのWorkが4PRを順に管理する**のであって、同じ実装箇所に対して並列PRを起こさない。
 
-着手前にこの最新main、`AGENTS.md`、`docs/SPEC_JA.md`、`docs/ISSUE4_JA.md`、`docs/DISPLAY_FINISH_JA.md`、`docs/TODO_JA.md`、`docs/WORK_PROGRESS.md`、`docs/DEVICE_TEST_JA.md`、現行ソース、open PR/Issue、既存リリース経路を確認する。別の進行中PRの変更を無断で取り込まない。最初の作業ブランチは**このTASKを含む最新mainから新規作成**する。各工程が独立してレビューできるようPRを分け、前工程をmainへマージした後、次工程の作業ブランチをその新mainから作る。途中で競合が発生したらmain/PR差分を再取得して安全に解決する。**WorkはPRを作った時点で打ち切らず、4つのPR完了まで一続きで担当する。**
+着手前にこの最新main、`AGENTS.md`、`docs/SPEC_JA.md`、`docs/ISSUE4_JA.md`、`docs/DISPLAY_FINISH_JA.md`、`docs/TODO_JA.md`、`docs/WORK_PROGRESS.md`、`docs/DEVICE_TEST_JA.md`、現行ソース、open PR/Issue、既存リリース経路を確認する。別の進行中PRの変更を無断で取り込まない。最初の作業ブランチは**このTASKを含む最新mainから新規作成**する。各工程が独立してレビューできるようPRを分け、**各PRをその工程の自動試験・独立レビュー・必要な修正の完了後にWorkが自律的にmainへマージ**する。次工程の作業ブランチはマージ後の新mainから作る。途中で競合が発生したらmain/PR差分を再取得して安全に解決する。**WorkはPRを作った時点で打ち切らず、4つのPR完了まで一続きで担当する。**
 
 対象はAndroid **6/7/8/9/10**（API 23/24/26/28/29）、優先実機はZ3 Tablet Compact（6）、Z4 Tablet（7）、XZ1 Compact（8）、Rakuten Mini（9）、Rakuten Hand（10）。既存の `com.xiaqui.overlay`、旧版からの上書き互換・署名・設定保存を維持する。
 
@@ -32,7 +32,10 @@ Z3TC（Android 6）で、Overlayの横型電池の端子位置・残量増加方
 
 - 既存の角丸5状態、アプリ別Navbar「自動／固定色／なし」、上下統一着色、Recents停止、全画面検出の安全側フォールバック、低負荷/分単位更新/消灯中停止、旧2006優先・拒否時2038、最小オーバーレイ・タッチ透過を維持する。Navbar着色がRakuten Mini等で合わない既存課題は**今回の4工程には混ぜない**。
 - 新規ネットワーク通信、広告/分析SDK、MediaProjection、AccessibilityService、不要な権限・常駐Serviceを増やさない。署名鍵、個人情報、スクリーンショットはコミットしない。Android11+対応や別プロジェクトへの波及は今回の範囲外。
-- 各工程で単体/表示試験を追加し、**Actions/Artifactの利用枠は社長から回復報告あり。Workは実際の利用可能状態を確認して、必要なCIを実行し、各PRの成功run・対象SHAを照合する。Artifact取得可能でも正式配布や実機受入完了とはみなさない。** 最終的に `testDebugUnitTest`、`lintDebug`、`assembleDebug`、可能な `assembleDebugAndroidTest` とAPI23/24/26/28/29 instrumented regressionを実施。環境/利用枠により不可なら代替のローカル検証を実施し、**未実施を合格と書かない**。不要なActions再実行やArtifactの量産は避ける。
-- 全工程が揃った最終headの差分を別担当で独立レビューし、P0/P1は必ず修正、P2は修正または根拠付きで整理。修正後の対象テストと重点再レビューを実施。**4 PRを工程1→2→3→4の順に作成**し、各PRにその工程の変更・試験・未検証事項を記載する。各PRが合格になるまで次へ進まず、別PRの機能を先取りしない。
-- `docs/TODO_JA.md` は本PRで実装した4件と事前確認した電池残量の項目について、証拠のあるものだけ完了に更新。`docs/WORK_PROGRESS.md` と必要な検収文書へ実装、試験、独立レビュー、残る実機確認とSHAを記録。実機確認は社長の実測が必要なので推測で合格にしない。
-- **1つのWorkで4工程を連続して担当するが、各PRのmainへのmergeは社長の別途承認を要する。** 次工程は前工程のマージ許可・実施後に開始し、承認が得られない場合は次工程を無理に積み重ねず、完了済み工程と承認待ちを報告する。署名APKのCI/Artifact生成は可能かつ必要なら各工程で実施できるが、正式Release公開・Google Drive差し替えは別途承認なしに行わない。既存署名/配布経路は変更しない。完成時に4件のPR URL、各branch/head SHA、テスト/Actions結果、レビュー、mergeと配送状況、社長が見るべき実機差分を報告する。
+- 各工程で単体/表示試験を追加し、**Actions/Artifactの利用枠は社長から回復報告あり。Workは実際の利用可能状態を確認して、各PRで必要なCIを実行し、成功run・対象head SHAを照合する。中間工程の配布用Artifactは作成しない。最終工程のmainマージ後に最終main SHA専用の署名済みAPK Artifactを1つだけ作る。Artifactの成功と実機受入完了は区別する。** 最終的に `testDebugUnitTest`、`lintDebug`、`assembleDebug`、可能な `assembleDebugAndroidTest` とAPI23/24/26/28/29 instrumented regressionを実施。環境/利用枠により不可なら代替のローカル検証を実施し、**未実施を合格と書かない**。不要なActions再実行やArtifactの量産は避ける。
+- **各工程の最終PR headの差分を別担当で独立レビュー**し、P0/P1は必ず修正、P2は修正または根拠付きで整理。修正後の対象テストと重点再レビューを実施。各PRでCI・レビュー・mergeable・未解決threadを検査してからマージし、main側SHAまで照合する。**4 PRを工程1→2→3→4の順に作成**し、各PRにその工程の変更・試験・未検証事項を記載する。各PRが合格になるまで次へ進まず、別PRの機能を先取りしない。
+- `docs/TODO_JA.md` は各PRで実装した4件と事前確認した電池残量の項目について、証拠のあるものだけ完了に更新。`docs/WORK_PROGRESS.md` と必要な検収文書へ実装、試験、独立レビュー、残る実機確認とSHAを記録。実機確認は社長の実測が必要なので推測で合格にしない。
+- **社長は今回、4工程の各PRについて、検収合格後の順次mainマージまで明示的に承認した。Workは各工程で追加承認を求めず、レビュー/CI合格と重大指摘解消を確認してマージし、次工程へ進む。** P0/P1未解決、重要な仕様判断、署名/配送の安全性が確認できない場合だけ停止し、状況を報告する。実機確認を捏造せず、未検証の端末については検収待ちと記録する。実機未検証であること自体は、社長が別途実機検収する前提でレビュー・CI合格済みのPRをマージすることの妨げにはしない。
+- **APK生成は4工程すべて完了して最終PR④をmainへマージした後の一度だけ。** 既存 `.github/workflows/build-latest-signed-artifact.yml` 等の現行正式署名ワークフローを確認し、最終main SHAの更新互換な署名済み `Overlay.apk` のArtifactを**1件だけ**生成する（中間工程はCIのみ）。署名証明書、versionCode、package、minSdk、source SHA、ビルドrun、Artifact ID、APK実体サイズ/ハッシュを照合。別debug鍵・未署名ビルドを正式APKとしない。既存Releaseや他バージョンは上書きしない。
+- **最終APKをGoogle Driveへ配送することも、社長が今回明示承認した。** 既存のOverlay専用の配布ファイル/固定ID・権限・更新手順をまず接続Google Driveやrepo文書で調べ、既存IDが確認できれば同じファイルIDの内容だけを更新する。他プロジェクトの固定IDを流用しない。**Overlay専用固定IDが存在しない場合は、Google DriveにOverlay専用APKを新規作成してそのIDを以後の固定配送先として記録する（既存他ファイルは変更しない）。** Workの権限でDrive更新ができない場合は配送未完了と明記して無理に成功扱いせず、検証済みArtifactと理由を報告する。配送後は再取得してID・名前・MIME・容量・更新日時・可能ならバイト/ハッシュ一致を確認。repo文書へ配送実績を残す。実機インストールは未確認と区別する。
+- 完成時に4件のPR URL、各branch/head SHA・merge SHA、各テスト/Actions結果・レビュー、最終main SHA、唯一の署名済みAPK Artifact・APK SHA256・Drive固定ID/URL・再取得照合結果、残る実機確認事項を報告する。
