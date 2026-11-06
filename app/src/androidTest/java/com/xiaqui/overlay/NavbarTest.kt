@@ -96,6 +96,23 @@ class NavbarTest {
         assertTrue("shadow is displaced down",StatusView.SHADOW_DY_DP>0f)
         assertTrue("shadow blur stays finer than one dp",StatusView.SHADOW_RADIUS_DP in 0.25f..0.75f)
         assertTrue("shadow stays translucent",Color.alpha(StatusView.SHADOW_COLOR) in 128..208)
+        fun pixels(view: StatusView,background: Int): List<Int> {
+            view.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+            view.layout(0,0,view.measuredWidth,view.measuredHeight)
+            val image=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
+            image.eraseColor(background);view.draw(Canvas(image))
+            val result=ArrayList<Int>(image.width*image.height)
+            for(py in 0 until image.height)for(px in 0 until image.width)result.add(image.getPixel(px,py))
+            image.recycle();return result
+        }
+        settings.set("size",14);settings.set("clock",true);settings.set("battery",false);settings.set("color",0)
+        val clock=StatusView(ctx,settings).apply { clockTextOverride="17:03" }
+        assertTrue("actual clock shadow contrasts on white",pixels(clock,Color.WHITE).count {
+            Color.red(it)<245 && Color.green(it)<245 && Color.blue(it)<245
+        }>10)
+        assertTrue("actual clock face survives on black",pixels(clock,Color.BLACK).count {
+            Color.red(it)>180 && Color.green(it)>180 && Color.blue(it)>180
+        }>10)
         settings.set("x",-32);settings.set("y",-20)
         assertEquals(-32,Settings(ctx).offset("x",4));assertEquals(-20,Settings(ctx).offset("y",0))
         settings.set("x",-999);settings.set("y",999)
@@ -139,6 +156,26 @@ class NavbarTest {
         val centerY=(minY+maxY)/2
         assertTrue("right-side terminal reaches the silhouette edge",contrasted.any { it.first>=maxX-1 && kotlin.math.abs(it.second-centerY)<=3 })
         bitmap.recycle()
+        assertTrue("actual battery face survives on black",pixels(battery,Color.BLACK).count {
+            Color.red(it)>180 && Color.green(it)>180 && Color.blue(it)>180
+        }>10)
+        battery.charging=true
+        assertTrue("charging battery keeps a visible white-background silhouette",pixels(battery,Color.WHITE).count {
+            Color.red(it)<245 && Color.green(it)<245 && Color.blue(it)<245
+        }>10)
+        settings.set("clock",true);settings.set("battery",true)
+        val combined=StatusView(ctx,settings).apply { percent=50;charging=true;clockTextOverride="17:03" }
+        combined.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+        combined.layout(0,0,combined.measuredWidth,combined.measuredHeight)
+        val combinedImage=Bitmap.createBitmap(combined.width,combined.height,Bitmap.Config.ARGB_8888)
+        combinedImage.eraseColor(Color.WHITE);combined.draw(Canvas(combinedImage))
+        var clockContrast=0
+        for(py in 0 until combinedImage.height)for(px in combinedImage.width/2 until combinedImage.width) {
+            val c=combinedImage.getPixel(px,py)
+            if(Color.red(c)<245 && Color.green(c)<245 && Color.blue(c)<245)clockContrast++
+        }
+        combinedImage.recycle()
+        assertTrue("clock restores its shadow after the charging bolt clears paint shadow",clockContrast>10)
     }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
         val colors=NavbarColors(ctx)

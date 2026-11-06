@@ -11,6 +11,7 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     var percent = -1
     var charging = false
+    internal var clockTextOverride: String? = null
     private val d get() = resources.displayMetrics.density
     // The saved value is a base sp size. scaledDensity applies the OS fontScale once.
     private val size get() = settings.number("size", 14) * resources.displayMetrics.scaledDensity
@@ -20,7 +21,7 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         paint.setShadowLayer(SHADOW_RADIUS_DP*d,SHADOW_DX_DP*d,SHADOW_DY_DP*d,SHADOW_COLOR)
     }
     init { setLayerType(LAYER_TYPE_SOFTWARE, null); importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
-    private fun clockText(): String = DateFormat.getTimeFormat(context).format(Date())
+    private fun clockText(): String = clockTextOverride ?: DateFormat.getTimeFormat(context).format(Date())
     private fun textWidth(): Float {
         paint.textSize = size
         paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
