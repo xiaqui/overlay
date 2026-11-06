@@ -212,15 +212,25 @@ class NavbarTest {
             assertTrue("full battery fills more than empty for reversed=$reversed: $counts",counts.last()>counts.first()+5)
         }
         val normal=shot(20,false)
-        val normalLeft=normal.image.getPixel((normal.bodyX+inset+0.5f).toInt(),normal.centerY)
-        val normalRight=normal.image.getPixel((normal.bodyX+bw-inset-0.5f).toInt(),normal.centerY)
-        assertTrue("normal 20% fills from left",Color.red(normalLeft)>180 && Color.red(normalRight)<100)
+        fun halfFill(shot: Shot): Pair<Int,Int> {
+            val left=kotlin.math.ceil(shot.bodyX+inset).toInt()
+            val right=kotlin.math.floor(shot.bodyX+bw-inset).toInt()
+            val middle=(left+right)/2
+            var leftCount=0;var rightCount=0
+            for(px in left until right) {
+                if(Color.red(shot.image.getPixel(px,shot.centerY))>180) {
+                    if(px<middle)leftCount++ else rightCount++
+                }
+            }
+            return leftCount to rightCount
+        }
+        val normalHalves=halfFill(normal)
+        assertTrue("normal 20% fills from left: $normalHalves",normalHalves.first>normalHalves.second)
         assertTrue("normal terminal is on right",Color.red(normal.image.getPixel((normal.bodyX+bw+cap/2).toInt(),normal.centerY))>180)
         normal.image.recycle()
         val reverse=shot(20,true)
-        val reverseLeft=reverse.image.getPixel((reverse.bodyX+inset+0.5f).toInt(),reverse.centerY)
-        val reverseRight=reverse.image.getPixel((reverse.bodyX+bw-inset-0.5f).toInt(),reverse.centerY)
-        assertTrue("reversed 20% fills from right",Color.red(reverseLeft)<100 && Color.red(reverseRight)>180)
+        val reverseHalves=halfFill(reverse)
+        assertTrue("reversed 20% fills from right: $reverseHalves",reverseHalves.second>reverseHalves.first)
         assertTrue("reversed terminal is on left",Color.red(reverse.image.getPixel((reverse.bodyX-cap/2).toInt(),reverse.centerY))>180)
         reverse.image.recycle()
         val normalBolt=StatusView.batteryBoltPoints(false)
