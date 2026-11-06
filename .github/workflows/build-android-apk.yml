@@ -86,7 +86,9 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: bash .github/scripts/emulator-test.sh
   release:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # The four-stage Work creates exactly one signed Artifact after the final merge.
+    # Keep this legacy Release job dormant so intermediate main merges do not build or publish APKs.
+    if: ${{ false }}
     needs: [check, emulator]
     concurrency:
       group: overlay-release-${{ github.sha }}
@@ -203,4 +205,5 @@ jobs:
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/overlay.jks" "$RUNNER_TEMP/cert.der"
+
 
