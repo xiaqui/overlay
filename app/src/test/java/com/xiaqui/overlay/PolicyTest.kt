@@ -72,6 +72,8 @@ class PolicyTest {
     @Test fun supportedWindowTypes() {
         for(sdk in 23..25)assertEquals(listOf(2006),Policy.windowTypes(sdk,true))
         for(sdk in 26..29)assertEquals(listOf(2006,2038),Policy.windowTypes(sdk,false))
+        for(sdk in 26..29)assertEquals(listOf(2038),Policy.windowTypes(sdk,false,true))
+        assertEquals(listOf(2006),Policy.windowTypes(23,false,true))
     }
     @Test fun minuteSchedulingNeverBusyLoops() {
         assertEquals(60_000L,Policy.nextMinute(60_000));assertEquals(1L,Policy.nextMinute(119_999));assertEquals(1L,Policy.nextMinute(-1))

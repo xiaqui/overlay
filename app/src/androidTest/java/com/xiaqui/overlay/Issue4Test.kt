@@ -169,11 +169,50 @@ class Issue4Test {
         waitFor("clock-only restores after global setting is restored") {
             OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
         }
+        main { settings.setDisplayRule("com.android.settings",Policy.DISPLAY_BATTERY) }
+        ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitFor("app switch applies the other package's battery-only rule without a preference rebuild") {
+            OverlayService.runtime?.let {
+                it.foreground=="com.android.settings" && it.visible &&
+                    it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
+            }==true
+        }
+        launch("normal")
+        waitFor("returning app restores its clock-only rule") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
+            }==true
+        }
+        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        waitFor("clock-only survives rotation") {
+            ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
+        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        waitFor("clock-only restores after portrait rotation") {
+            ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT &&
+                OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
+        shell("input keyevent KEYCODE_SLEEP")
+        waitFor("screen off makes runtime status non-visible") { OverlayService.runtime?.visible==false }
+        shell("input keyevent KEYCODE_WAKEUP");shell("wm dismiss-keyguard")
+        waitFor("screen on rebuild restores clock-only") {
+            OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS ignore")
+        waitFor("usage access revoke safely falls back to auto mode") {
+            OverlayService.runtime?.let { it.foreground==null && !it.visible && it.statusElements==0 }==true
+        }
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS allow")
+        waitFor("usage access restore recovers foreground and clock-only rule without an app event") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
+            }==true
+        }
         main { settings.set("fullscreen",false) }
         waitFor("partial exception never changes always mode") {
             OverlayService.runtime?.let { it.visible && it.statusElements==(Policy.STATUS_CLOCK or Policy.STATUS_BATTERY) }==true
         }
-        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
     }
     @Test fun legacyPrefsMigrateOnceWithoutDestroyingOriginals() {
         main {
