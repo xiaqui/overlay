@@ -92,6 +92,10 @@ class NavbarTest {
     }
     /** Display-finish pixels are emulator evidence; Xperia acceptance remains a device check. */
     @Test fun displayFinishSettingsFontScaleHorizontalBatteryAndShadow() {
+        assertTrue("shadow is displaced right",StatusView.SHADOW_DX_DP>0f)
+        assertTrue("shadow is displaced down",StatusView.SHADOW_DY_DP>0f)
+        assertTrue("shadow blur stays finer than one dp",StatusView.SHADOW_RADIUS_DP in 0.25f..0.75f)
+        assertTrue("shadow stays translucent",Color.alpha(StatusView.SHADOW_COLOR) in 128..208)
         settings.set("x",-32);settings.set("y",-20)
         assertEquals(-32,Settings(ctx).offset("x",4));assertEquals(-20,Settings(ctx).offset("y",0))
         settings.set("x",-999);settings.set("y",999)
@@ -321,3 +325,4 @@ class NavbarTest {
         android.util.Log.i("NavbarPrototypeTest","mode=ON,api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-cpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-start}")
     }
 }
+

@@ -14,6 +14,11 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
     private val d get() = resources.displayMetrics.density
     // The saved value is a base sp size. scaledDensity applies the OS fontScale once.
     private val size get() = settings.number("size", 14) * resources.displayMetrics.scaledDensity
+    private fun applyStatusShadow() {
+        // Keep the Xperia-style edge readable without surrounding every stroke with a halo.
+        // A small right/down displacement matches the reference FloatClock more closely.
+        paint.setShadowLayer(SHADOW_RADIUS_DP*d,SHADOW_DX_DP*d,SHADOW_DY_DP*d,SHADOW_COLOR)
+    }
     init { setLayerType(LAYER_TYPE_SOFTWARE, null); importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
     private fun clockText(): String = DateFormat.getTimeFormat(context).format(Date())
     private fun textWidth(): Float {
@@ -30,7 +35,7 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         super.onDraw(canvas)
         paint.color = when (settings.number("color", 0)) { 1 -> Color.LTGRAY; 2 -> Color.DKGRAY; else -> Color.WHITE }
         paint.style = Paint.Style.FILL
-        paint.setShadowLayer(0.9f*d, 0f, 0.35f*d, 0xD8000000.toInt())
+        applyStatusShadow()
         var x = 3*d
         if (settings.bool("battery", true)) {
             val bw = size*0.94f
@@ -60,10 +65,16 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         }
         if (settings.bool("clock", true)) {
             paint.color = when(settings.number("color",0)) {1->Color.LTGRAY;2->Color.DKGRAY;else->Color.WHITE}
-            paint.setShadowLayer(0.9f*d,0f,0.35f*d,0xD8000000.toInt())
+            applyStatusShadow()
             paint.textSize=size; paint.typeface=Typeface.create("sans-serif",Typeface.NORMAL)
             canvas.drawText(clockText(), x, height/2f-(paint.ascent()+paint.descent())/2f, paint)
         }
+    }
+    companion object {
+        internal const val SHADOW_RADIUS_DP=0.55f
+        internal const val SHADOW_DX_DP=0.55f
+        internal const val SHADOW_DY_DP=0.65f
+        internal const val SHADOW_COLOR=0xB8000000.toInt()
     }
 }
 
@@ -81,4 +92,5 @@ class CornerView(context: Context, private val corner: Int) : View(context) {
         canvas.drawPath(p,paint);canvas.restore()
     }
 }
+
 
