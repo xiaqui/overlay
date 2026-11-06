@@ -7,7 +7,11 @@ import android.text.format.DateFormat
 import java.util.Date
 
 /** Original geometry; no assets or code from reference APKs. */
-class StatusView(context: Context, private val settings: Settings) : View(context) {
+class StatusView(
+    context: Context,
+    private val settings: Settings,
+    private val elements: Int = ELEMENT_CLOCK or ELEMENT_BATTERY
+) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     var percent = -1
     var charging = false
@@ -15,6 +19,8 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
     private val d get() = resources.displayMetrics.density
     // The saved value is a base sp size. scaledDensity applies the OS fontScale once.
     private val size get() = settings.number("size", 14) * resources.displayMetrics.scaledDensity
+    private fun clockEnabled()=elements and ELEMENT_CLOCK!=0 && settings.bool("clock",true)
+    private fun batteryEnabled()=elements and ELEMENT_BATTERY!=0 && settings.bool("battery",true)
     private fun applyStatusShadow() {
         // Keep the Xperia-style edge readable without surrounding every stroke with a halo.
         // A small right/down displacement matches the reference FloatClock more closely.
@@ -25,11 +31,11 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
     private fun textWidth(): Float {
         paint.textSize = size
         paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-        return if (settings.bool("clock", true)) paint.measureText(clockText()) else 0f
+        return if (clockEnabled()) paint.measureText(clockText()) else 0f
     }
     override fun onMeasure(w: Int, h: Int) {
-        val batteryWidth = if (settings.bool("battery", true)) size * 1.18f else 0f
-        val gap = if (batteryWidth > 0 && settings.bool("clock", true)) 4 * d else 0f
+        val batteryWidth = if (batteryEnabled()) size * 1.18f else 0f
+        val gap = if (batteryWidth > 0 && clockEnabled()) 4 * d else 0f
         setMeasuredDimension(kotlin.math.ceil(textWidth() + batteryWidth + gap + 6*d).toInt().coerceAtLeast(1), (size*1.35f+6*d).toInt())
     }
     override fun onDraw(canvas: Canvas) {
@@ -38,7 +44,7 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         paint.style = Paint.Style.FILL
         applyStatusShadow()
         var x = 3*d
-        if (settings.bool("battery", true)) {
+        if (batteryEnabled()) {
             val bw = size*0.94f
             val bh = size*0.56f
             val by = (height-bh)/2f
@@ -62,9 +68,9 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
                 }
                 canvas.drawPath(bolt,paint)
             }
-            x += size*1.18f + if (settings.bool("clock", true)) 4*d else 0f
+            x += size*1.18f + if (clockEnabled()) 4*d else 0f
         }
-        if (settings.bool("clock", true)) {
+        if (clockEnabled()) {
             paint.color = when(settings.number("color",0)) {1->Color.LTGRAY;2->Color.DKGRAY;else->Color.WHITE}
             applyStatusShadow()
             paint.textSize=size; paint.typeface=Typeface.create("sans-serif",Typeface.NORMAL)
@@ -72,6 +78,8 @@ class StatusView(context: Context, private val settings: Settings) : View(contex
         }
     }
     companion object {
+        internal const val ELEMENT_CLOCK=1
+        internal const val ELEMENT_BATTERY=2
         internal const val SHADOW_RADIUS_DP=0.55f
         internal const val SHADOW_DX_DP=0.55f
         internal const val SHADOW_DY_DP=0.65f

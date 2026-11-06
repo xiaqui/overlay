@@ -39,7 +39,7 @@ class MainActivity: Activity() {
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
         setContentView(ScrollView(this).apply { addView(content) })
         content.addView(text("Overlay — 画面表示仕上げ版",26f))
-        content.addView(text("Android 6〜10・Xperia向け。時計と電池は右上、背景透明・タッチ透過。"))
+        content.addView(text("Android 6〜10・Xperia向け。時計は左右を選択でき、背景透明・タッチ透過です。"))
         val allowed=SystemSettings.canDrawOverlays(this)
         content.addView(text(if(allowed)"重ねて表示：許可済み" else "最初に「他のアプリの上に重ねて表示」を許可してください。"))
         button("重ねて表示の許可") { startActivity(Intent(SystemSettings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName"))) }
@@ -54,12 +54,18 @@ class MainActivity: Activity() {
         }
         content.addView(text(settings.prefs.getString("diagnostic","まだ開始していません") ?: ""))
         toggle("時計","clock",true);toggle("電池","battery",true)
+        button("時計の左右配置：" + (if(settings.clockOnLeft())"左" else "右（標準）")) {
+            AlertDialog.Builder(this).setTitle("時計の左右配置").setSingleChoiceItems(
+                arrayOf("右（標準：電池と時計を右上）","左（時計を左上・電池を右上）"),
+                if(settings.clockOnLeft())1 else 0
+            ) { dialog,value->settings.set("clock_left",value==1);dialog.dismiss();showSettings() }.show()
+        }
         toggle("全画面のときだけ","fullscreen")
         content.addView(text("ステータスバーが隠れたときに時計・電池を表示します。判定不能時は表示を維持します。機種差や一時的なバー表示に合わないアプリは、下の例外設定で調整できます。"))
         slider("文字サイズ","size",10,28,14)
-        slider("右端からの距離","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
+        slider(if(settings.clockOnLeft())"左右の端からの距離" else "右端からの距離","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
         slider("上端からの距離","y",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
-        content.addView(text("位置は -64〜100 dp。負数で右端・上端の外側へ寄せられます。表示が欠けた場合は0付近へ戻してください。文字サイズは基準spで、OSの文字サイズ倍率を1回だけ反映します。"))
+        content.addView(text("位置は -64〜100 dp。負数で左右端・上端の外側へ寄せられます。左配置では時計を左、電池を右に分け、同じ端距離を使います。表示が欠けた場合は0付近へ戻してください。文字サイズは基準spで、OSの文字サイズ倍率を1回だけ反映します。"))
         button("文字と電池の色") {
             AlertDialog.Builder(this).setTitle("表示色").setSingleChoiceItems(arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { dialog,i -> settings.set("color",i);dialog.dismiss() }.show()
         }
@@ -168,4 +174,5 @@ class PreviewActivity: Activity() {
         })
     }
 }
+
 

@@ -227,6 +227,46 @@ class NavbarTest {
             assertFalse("top failure remains local",statusLayer.attach());assertNull(statusLayer.view)
         }
     }
+    @Test fun clockSideDefaultsRightAndLeftModeKeepsBatteryRightAcrossRotationAndToggles() {
+        assertFalse("existing installs default to the legacy right layout",settings.clockOnLeft())
+        launch()
+        main {
+            settings.set("top",true);settings.set("bottom",true)
+            settings.set("x",-10);settings.set("y",-6)
+            settings.set("clock_left",true);settings.set("clock",true);settings.set("battery",true)
+            settings.set("enabled",true);OverlayService.start(ctx)
+        }
+        waitFor("left clock and right battery attach as two status windows") {
+            OverlayService.runtime?.let {
+                it.visible && it.statusLocations.size==2 && it.windowCount==6 &&
+                    it.statusLocations.minOf { p->p.x }<0 &&
+                    it.statusLocations.maxOf { p->p.x }>ctx.resources.displayMetrics.widthPixels/2
+            }==true
+        }
+        var screen=inst.uiAutomation.takeScreenshot()!!
+        assertTrue("negative left offset is preserved",OverlayService.runtime!!.statusLocations.minOf { it.x }<0)
+        assertTrue("battery remains at the right edge",OverlayService.runtime!!.statusLocations.maxOf { it.x }>screen.width/2)
+        screen.recycle()
+
+        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        waitFor("left/right split survives rotation") {
+            ctx.resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE &&
+                OverlayService.runtime?.statusLocations?.let { it.size==2 && it.minOf { p->p.x }<0 && it.maxOf { p->p.x }>ctx.resources.displayMetrics.widthPixels/2 }==true
+        }
+        main { settings.set("clock",false) }
+        waitFor("clock OFF leaves only the right battery window") {
+            OverlayService.runtime?.let { it.statusLocations.size==1 && it.statusLocations[0].x>ctx.resources.displayMetrics.widthPixels/2 && it.windowCount==5 }==true
+        }
+        main { settings.set("clock",true);settings.set("battery",false) }
+        waitFor("battery OFF leaves only the left clock window") {
+            OverlayService.runtime?.let { it.statusLocations.size==1 && it.statusLocations[0].x<0 && it.windowCount==5 }==true
+        }
+        main { settings.set("clock",false) }
+        waitFor("both OFF leave no invisible status window") {
+            OverlayService.runtime?.let { !it.visible && it.statusLocations.isEmpty() && it.windowCount==4 }==true
+        }
+        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+    }
     @Test fun actualBandAppSwitchFiveModesOffFullscreenRotationAndButtons() {
         launch()
         main {

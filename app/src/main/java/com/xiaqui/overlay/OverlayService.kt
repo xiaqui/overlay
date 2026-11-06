@@ -16,7 +16,7 @@ class OverlayService : Service() {
     private lateinit var wm: WindowManager
     private val handler=Handler(Looper.getMainLooper())
     private val windows=mutableListOf<View>()
-    private var status: StatusView?=null
+    private val statusViews=mutableListOf<StatusView>()
     private var observation: BarObservation?=null
     private var bars=BarState()
     private var lastCornerLayout: List<CornerOffset>?=null
@@ -51,7 +51,7 @@ class OverlayService : Service() {
         override fun run() {
             if (!screenOn) return
             if (!SystemSettings.canDrawOverlays(this@OverlayService)) { fail("重ねて表示の権限が取り消されました");return }
-            status?.apply { requestLayout();invalidate() }
+            statusViews.forEach { it.requestLayout();it.invalidate() }
             handler.postDelayed(this,Policy.nextMinute(System.currentTimeMillis()))
         }
     }
@@ -81,9 +81,9 @@ class OverlayService : Service() {
                 Intent.ACTION_BATTERY_CHANGED -> {
                     battery=Policy.batteryPercent(intent.getIntExtra(BatteryManager.EXTRA_LEVEL,-1),intent.getIntExtra(BatteryManager.EXTRA_SCALE,0))
                     charging=intent.getIntExtra(BatteryManager.EXTRA_PLUGGED,0)!=0
-                    status?.apply { percent=battery;this.charging=this@OverlayService.charging;if(screenOn) invalidate() }
+                    statusViews.forEach { it.percent=battery;it.charging=this@OverlayService.charging;if(screenOn)it.invalidate() }
                 }
-                else -> { status?.apply { requestLayout();if(screenOn) invalidate() };handler.removeCallbacks(minute);if(screenOn)handler.post(minute) }
+                else -> { statusViews.forEach { it.requestLayout();if(screenOn)it.invalidate() };handler.removeCallbacks(minute);if(screenOn)handler.post(minute) }
             }
         }
     }
@@ -122,7 +122,7 @@ class OverlayService : Service() {
         statusbarLayer?.clear();statusbarLayer=null;recentsDetector=null;recentsTintSuppressed=false
         observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
-        windows.clear();cornerWindows.clear();status=null;lastMask=-1;runtime=null
+        windows.clear();cornerWindows.clear();statusViews.clear();lastMask=-1;runtime=null
     }
     private fun params(width: Int,height: Int,gravityValue: Int,typeValue: Int=activeType)=WindowManager.LayoutParams(
         width,height,typeValue,
@@ -153,12 +153,25 @@ class OverlayService : Service() {
                         if(it.attach())statusbarLayer=it
                     }
                 }
-                status=StatusView(this,settings).apply { percent=battery;charging=this@OverlayService.charging }
                 val density=resources.displayMetrics.density
-                val p=params(-2,-2,Gravity.TOP or Gravity.RIGHT).apply {
-                    x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
+                fun attachStatus(elements: Int,gravity: Int) {
+                    val view=StatusView(this,settings,elements).apply {
+                        percent=battery;charging=this@OverlayService.charging
+                    }
+                    val p=params(-2,-2,Gravity.TOP or gravity).apply {
+                        x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
+                    }
+                    add(view,p);statusViews.add(view)
+                    view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
+                        if(statusViews.contains(view))publishRuntime()
+                    }
                 }
-                add(status!!,p)
+                if(settings.clockOnLeft()) {
+                    if(settings.bool("clock",true))attachStatus(StatusView.ELEMENT_CLOCK,Gravity.LEFT)
+                    if(settings.bool("battery",true))attachStatus(StatusView.ELEMENT_BATTERY,Gravity.RIGHT)
+                } else if(settings.bool("clock",true) || settings.bool("battery",true)) {
+                    attachStatus(StatusView.ELEMENT_CLOCK or StatusView.ELEMENT_BATTERY,Gravity.RIGHT)
+                }
                 if(settings.needsBars())attachBarObservation()
                 updateStatusVisibility()
                 updateForeground();updateCorners()
@@ -201,16 +214,18 @@ class OverlayService : Service() {
     private fun updateStatusVisibility() {
         val exception=foreground?.let { settings.displayRule(it) } ?: 0
         val visible=Policy.statusVisible(settings.bool("fullscreen"),exception,bars)
-        status?.visibility=if(screenOn && visible && (settings.bool("clock",true)||settings.bool("battery",true)))View.VISIBLE else View.INVISIBLE
+        statusViews.forEach { it.visibility=if(screenOn && visible)View.VISIBLE else View.INVISIBLE }
         publishRuntime()
     }
     private fun publishRuntime() {
-        runtime=RuntimeState(status?.visibility==View.VISIBLE,bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
+        runtime=RuntimeState(statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
             navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,
             statusbarLayer?.let { StatusbarRuntime(screenOn && it.ready,navbarCandidate?.color,it.view?.height ?: 0,
-                it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType)
+                it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType,statusViews.map {
+                    val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
+                })
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -267,7 +282,7 @@ class OverlayService : Service() {
         val bottom=mask and 2!=0 && r>0
         val spec=NavbarSpec(display.x,display.y,bars.bottom,r,bottom,mode==Policy.BOTTOM_INSIDE || mode==Policy.BOTH_INSIDE,color,!tint.suppressed)
         val upperExtent=maxOf(bars.top+(if(mask and 1!=0)r else 0),
-            (status?.height ?: 0)+(settings.offset("y",0)*resources.displayMetrics.density).toInt())
+            (statusViews.maxOfOrNull { it.height } ?: 0)+(settings.offset("y",0)*resources.displayMetrics.density).toInt())
         if(spec.top<=upperExtent) { navbarReason="上側表示領域との重なりを避けて従来表示";return null }
         return spec
     }
@@ -360,7 +375,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?) : IBinder?=null
     data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int,val draws: Int=0)
     data class StatusbarRuntime(val active: Boolean,val color: Int?,val height: Int,val reason: String,val draws: Int=0)
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006)
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList())
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {
@@ -381,4 +396,5 @@ class BootReceiver: BroadcastReceiver() {
         }
     }
 }
+
 
