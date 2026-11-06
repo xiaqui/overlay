@@ -159,6 +159,7 @@ class NavbarTest {
         assertTrue("actual battery face survives on black",pixels(battery,Color.BLACK).count {
             Color.red(it)>180 && Color.green(it)>180 && Color.blue(it)>180
         }>10)
+        settings.set("clock",true);settings.set("battery",true)
         val clockOnly=StatusView(ctx,settings,Policy.STATUS_CLOCK).apply { clockTextOverride="17:03" }
         val batteryOnly=StatusView(ctx,settings,Policy.STATUS_BATTERY).apply { percent=50 }
         assertTrue("clock-only mask paints actual clock pixels",pixels(clockOnly,Color.WHITE).count {

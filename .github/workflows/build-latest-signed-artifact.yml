@@ -2,12 +2,19 @@ name: Build latest signed APK artifact
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-latest-signed-artifact.yml'
 
 permissions:
   contents: read
 
 jobs:
   build:
+    # The automatic path is a one-shot guard for the fourth/final merge in this Work.
+    # Future main updates can only run this workflow through workflow_dispatch.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == '4c17cd4f1b932daff8512d3191d24ccd1b51262e' }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk

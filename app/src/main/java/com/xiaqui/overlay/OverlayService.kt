@@ -148,7 +148,8 @@ class OverlayService : Service() {
         }
         catch (error: WindowManager.BadTokenException) {
             if(Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,p.type,
-                    true,legacyTypeRejected))throw LegacyWindowRejected(error)
+                    SystemSettings.canDrawOverlays(this),legacyTypeRejected))
+                throw LegacyWindowRejected(error)
             throw error
         }
         windows.add(view)
