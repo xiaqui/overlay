@@ -49,22 +49,29 @@ class StatusView(
             val bh = size*0.56f
             val by = (height-bh)/2f
             val cap = maxOf(1.2f*d,size*0.08f)
-            // Original Xperia-like horizontal geometry: body, then a terminal on the right.
+            val reversed=settings.batteryReversed()
+            val bodyX=if(reversed)x+cap else x
+            fun bx(fraction: Float)=bodyX+bw*(if(reversed)1f-fraction else fraction)
+            // Horizontal geometry can be mirrored without tying the choice to an OS version.
             paint.style = Paint.Style.STROKE; paint.strokeWidth = maxOf(0.8f*d,size*0.045f)
-            canvas.drawRect(x,by,x+bw,by+bh,paint)
+            canvas.drawRect(bodyX,by,bodyX+bw,by+bh,paint)
             paint.style = Paint.Style.FILL
-            canvas.drawRect(x+bw,by+bh*0.31f,x+bw+cap,by+bh*0.69f,paint)
+            if(reversed)canvas.drawRect(bodyX-cap,by+bh*0.31f,bodyX,by+bh*0.69f,paint)
+            else canvas.drawRect(bodyX+bw,by+bh*0.31f,bodyX+bw+cap,by+bh*0.69f,paint)
             if (percent >= 0) {
                 val inset=maxOf(1.2f*d,size*0.07f)
-                val right=x+inset+(bw-2*inset)*percent.coerceIn(0,100)/100f
-                canvas.drawRect(x+inset,by+inset,right,by+bh-inset,paint)
+                val innerLeft=bodyX+inset
+                val innerRight=bodyX+bw-inset
+                val filled=(innerRight-innerLeft)*percent.coerceIn(0,100)/100f
+                if(reversed)canvas.drawRect(innerRight-filled,by+inset,innerRight,by+bh-inset,paint)
+                else canvas.drawRect(innerLeft,by+inset,innerLeft+filled,by+bh-inset,paint)
             }
             if (charging) {
                 paint.clearShadowLayer(); paint.color = Color.DKGRAY
                 val bolt = Path().apply {
-                    moveTo(x+bw*0.58f,by+bh*0.08f); lineTo(x+bw*0.30f,by+bh*0.56f)
-                    lineTo(x+bw*0.49f,by+bh*0.56f); lineTo(x+bw*0.40f,by+bh*0.94f)
-                    lineTo(x+bw*0.72f,by+bh*0.43f); lineTo(x+bw*0.53f,by+bh*0.43f); close()
+                    moveTo(bx(0.58f),by+bh*0.08f); lineTo(bx(0.30f),by+bh*0.56f)
+                    lineTo(bx(0.49f),by+bh*0.56f); lineTo(bx(0.40f),by+bh*0.94f)
+                    lineTo(bx(0.72f),by+bh*0.43f); lineTo(bx(0.53f),by+bh*0.43f); close()
                 }
                 canvas.drawPath(bolt,paint)
             }

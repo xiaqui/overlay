@@ -19,6 +19,7 @@ class Settings(context: Context) {
     fun number(key: String,default: Int)=prefs.getInt(key,default)
     fun offset(key: String,default: Int)=number(key,default).coerceIn(MIN_OFFSET_DP,MAX_OFFSET_DP)
     fun clockOnLeft()=bool("clock_left")
+    fun batteryReversed()=bool("battery_reversed")
     fun set(key: String,value: Boolean) { prefs.edit().putBoolean(key,value).apply() }
     fun set(key: String,value: Int) { prefs.edit().putInt(key,value).apply() }
     fun rule(pkg: String)=Policy.mode(number("corner2:$pkg",Policy.NORMAL))

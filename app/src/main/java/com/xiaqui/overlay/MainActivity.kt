@@ -60,6 +60,12 @@ class MainActivity: Activity() {
                 if(settings.clockOnLeft())1 else 0
             ) { dialog,value->settings.set("clock_left",value==1);dialog.dismiss();showSettings() }.show()
         }
+        button("電池の向き：" + (if(settings.batteryReversed())"反転（端子左）" else "通常（端子右）")) {
+            AlertDialog.Builder(this).setTitle("電池の向き").setSingleChoiceItems(
+                arrayOf("通常（端子右・残量は左から増加）","反転（端子左・残量は右から増加）"),
+                if(settings.batteryReversed())1 else 0
+            ) { dialog,value->settings.set("battery_reversed",value==1);dialog.dismiss();showSettings() }.show()
+        }
         toggle("全画面のときだけ","fullscreen")
         content.addView(text("ステータスバーが隠れたときに時計・電池を表示します。判定不能時は表示を維持します。機種差や一時的なバー表示に合わないアプリは、下の例外設定で調整できます。"))
         slider("文字サイズ","size",10,28,14)
@@ -94,7 +100,7 @@ class MainActivity: Activity() {
         toggle("互換表示方式（バーより背面）","modern")
         content.addView(text("標準方式はAndroid 6〜10向けの旧レイヤーです。表示できない機種は互換方式を試してください。互換方式ではシステムバーの上に角丸を描けません。Android 11以降は保証外です。"))
         content.addView(text("外観合わせ",20f))
-        content.addView(text("初期値はXperia風の横型電池（右側端子）＋右端時計を基準にしています。スクリーンショットの常時取得はせず、白・黒の全画面で位置と大きさを手動調整します。画面密度やOS設定による差は上のスライダーで合わせてください。"))
+        content.addView(text("初期値は横型電池（右側端子）＋右端時計を基準にしています。端末の純正表示と逆の場合は電池を反転してください。スクリーンショットの常時取得はせず、白・黒の全画面で位置と大きさを手動調整します。画面密度やOS設定による差は上のスライダーで合わせてください。"))
         button("白背景の全画面で確認") { startActivity(Intent(this,PreviewActivity::class.java).putExtra("dark",false)) }
         button("黒背景の全画面で確認") { startActivity(Intent(this,PreviewActivity::class.java).putExtra("dark",true)) }
         button("電池の最適化設定") { startActivity(Intent(SystemSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
