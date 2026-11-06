@@ -45,7 +45,13 @@ class Issue4Test {
     }
     @After fun after() {
         main {
-            preview?.finish();settings.set("enabled",false);ctx.stopService(Intent(ctx,OverlayService::class.java))
+            val activities=linkedSetOf<PreviewActivity>()
+            preview?.let { activities.add(it) }
+            val monitor=ActivityLifecycleMonitorRegistry.getInstance()
+            for(stage in listOf(Stage.CREATED,Stage.STARTED,Stage.RESUMED,Stage.PAUSED,Stage.STOPPED))
+                activities.addAll(monitor.getActivitiesInStage(stage).filterIsInstance<PreviewActivity>())
+            activities.forEach { it.finish() };preview=null
+            settings.set("enabled",false);ctx.stopService(Intent(ctx,OverlayService::class.java))
         }
         waitFor("service cleanup") { !shell("dumpsys activity services ${ctx.packageName}").contains("ServiceRecord{") }
         main { settings.prefs.edit().clear().commit() }
