@@ -178,6 +178,7 @@ class NavbarTest {
         assertTrue("clock restores its shadow after the charging bolt clears paint shadow",clockContrast>10)
     }
     @Test fun batteryDirectionMirrorsTerminalFillAndChargingAppearance() {
+        assertFalse("existing installs default to the legacy right-terminal direction",settings.batteryReversed())
         settings.set("size",14);settings.set("clock",false);settings.set("battery",true);settings.set("color",0)
         val density=ctx.resources.displayMetrics.density
         val size=14*ctx.resources.displayMetrics.scaledDensity
@@ -207,7 +208,7 @@ class NavbarTest {
         }
         for(reversed in listOf(false,true)) {
             val counts=listOf(0,20,50,80,100).map { filledCount(it,reversed) }
-            assertTrue("fill grows monotonically for reversed=$reversed: $counts",counts.zipWithNext().all { it.first<=it.second })
+            assertTrue("0/20/50/80/100 fill grows at every step for reversed=$reversed: $counts",counts.zipWithNext().all { it.first<it.second })
             assertTrue("full battery fills more than empty for reversed=$reversed: $counts",counts.last()>counts.first()+5)
         }
         val normal=shot(20,false)
@@ -222,6 +223,12 @@ class NavbarTest {
         assertTrue("reversed 20% fills from right",Color.red(reverseLeft)<100 && Color.red(reverseRight)>180)
         assertTrue("reversed terminal is on left",Color.red(reverse.image.getPixel((reverse.bodyX-cap/2).toInt(),reverse.centerY))>180)
         reverse.image.recycle()
+        val normalBolt=StatusView.batteryBoltPoints(false)
+        val reverseBolt=StatusView.batteryBoltPoints(true)
+        for(i in normalBolt.indices step 2) {
+            assertEquals("charging bolt x point $i mirrors",1f-normalBolt[i],reverseBolt[i],0.0001f)
+            assertEquals("charging bolt y point " + (i+1) + " stays aligned",normalBolt[i+1],reverseBolt[i+1],0.0001f)
+        }
         for(reversed in listOf(false,true))for(background in listOf(Color.WHITE,Color.BLACK)) {
             val charging=shot(50,reversed,true,background)
             var contrast=0

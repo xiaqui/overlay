@@ -51,7 +51,6 @@ class StatusView(
             val cap = maxOf(1.2f*d,size*0.08f)
             val reversed=settings.batteryReversed()
             val bodyX=if(reversed)x+cap else x
-            fun bx(fraction: Float)=bodyX+bw*(if(reversed)1f-fraction else fraction)
             // Horizontal geometry can be mirrored without tying the choice to an OS version.
             paint.style = Paint.Style.STROKE; paint.strokeWidth = maxOf(0.8f*d,size*0.045f)
             canvas.drawRect(bodyX,by,bodyX+bw,by+bh,paint)
@@ -68,10 +67,14 @@ class StatusView(
             }
             if (charging) {
                 paint.clearShadowLayer(); paint.color = Color.DKGRAY
+                val points=batteryBoltPoints(reversed)
                 val bolt = Path().apply {
-                    moveTo(bx(0.58f),by+bh*0.08f); lineTo(bx(0.30f),by+bh*0.56f)
-                    lineTo(bx(0.49f),by+bh*0.56f); lineTo(bx(0.40f),by+bh*0.94f)
-                    lineTo(bx(0.72f),by+bh*0.43f); lineTo(bx(0.53f),by+bh*0.43f); close()
+                    moveTo(bodyX+bw*points[0],by+bh*points[1])
+                    var i=2
+                    while(i<points.size) {
+                        lineTo(bodyX+bw*points[i],by+bh*points[i+1]);i+=2
+                    }
+                    close()
                 }
                 canvas.drawPath(bolt,paint)
             }
@@ -91,6 +94,13 @@ class StatusView(
         internal const val SHADOW_DX_DP=0.55f
         internal const val SHADOW_DY_DP=0.65f
         internal const val SHADOW_COLOR=0xB8000000.toInt()
+        private val BOLT_POINTS=floatArrayOf(
+            0.58f,0.08f, 0.30f,0.56f, 0.49f,0.56f,
+            0.40f,0.94f, 0.72f,0.43f, 0.53f,0.43f
+        )
+        internal fun batteryBoltPoints(reversed: Boolean)=FloatArray(BOLT_POINTS.size) { i->
+            if(reversed && i%2==0)1f-BOLT_POINTS[i] else BOLT_POINTS[i]
+        }
     }
 }
 
