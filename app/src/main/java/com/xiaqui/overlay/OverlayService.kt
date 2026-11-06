@@ -162,6 +162,9 @@ class OverlayService : Service() {
                         x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
                     }
                     add(view,p);statusViews.add(view)
+                    view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
+                        if(statusViews.contains(view))publishRuntime()
+                    }
                 }
                 if(settings.clockOnLeft()) {
                     if(settings.bool("clock",true))attachStatus(StatusView.ELEMENT_CLOCK,Gravity.LEFT)

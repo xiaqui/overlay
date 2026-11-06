@@ -237,7 +237,11 @@ class NavbarTest {
             settings.set("enabled",true);OverlayService.start(ctx)
         }
         waitFor("left clock and right battery attach as two status windows") {
-            OverlayService.runtime?.let { it.visible && it.statusLocations.size==2 && it.windowCount==6 }==true
+            OverlayService.runtime?.let {
+                it.visible && it.statusLocations.size==2 && it.windowCount==6 &&
+                    it.statusLocations.minOf { p->p.x }<0 &&
+                    it.statusLocations.maxOf { p->p.x }>ctx.resources.displayMetrics.widthPixels/2
+            }==true
         }
         var screen=inst.uiAutomation.takeScreenshot()!!
         assertTrue("negative left offset is preserved",OverlayService.runtime!!.statusLocations.minOf { it.x }<0)
