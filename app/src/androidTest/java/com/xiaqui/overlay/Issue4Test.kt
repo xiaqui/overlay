@@ -177,7 +177,7 @@ class Issue4Test {
                     it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
             }==true
         }
-        shell("am start -W -n ${ctx.packageName}/.PreviewActivity --es bars normal")
+        shell("am start -n ${ctx.packageName}/.PreviewActivity --es bars normal")
         waitFor("returning app restores its clock-only rule") {
             OverlayService.runtime?.let {
                 it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
