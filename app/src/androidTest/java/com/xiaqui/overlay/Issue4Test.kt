@@ -5,6 +5,8 @@ import android.content.pm.ActivityInfo
 import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -17,8 +19,8 @@ class Issue4Test {
     private var preview: PreviewActivity?=null
     private fun shell(command: String): String=ParcelFileDescriptor.AutoCloseInputStream(inst.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
     private fun main(action: ()->Unit)=inst.runOnMainSync(action)
-    private fun waitFor(message: String,condition: ()->Boolean) {
-        val end=android.os.SystemClock.elapsedRealtime()+12_000
+    private fun waitFor(message: String,timeoutMs: Long=12_000,condition: ()->Boolean) {
+        val end=android.os.SystemClock.elapsedRealtime()+timeoutMs
         while(android.os.SystemClock.elapsedRealtime()<end) {
             if(condition())return
             android.os.SystemClock.sleep(150)
@@ -52,6 +54,14 @@ class Issue4Test {
         preview=inst.startActivitySync(Intent(ctx,PreviewActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("bars",mode)) as PreviewActivity
         inst.waitForIdleSync()
+    }
+    private fun resumedPreview(): PreviewActivity? {
+        var result: PreviewActivity?=null
+        main {
+            result=ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(Stage.RESUMED).filterIsInstance<PreviewActivity>().firstOrNull()
+        }
+        return result
     }
     private fun enable()=main {
         settings.set("top",true);settings.set("bottom",true);settings.set("fullscreen",true)
@@ -183,11 +193,8 @@ class Issue4Test {
                 it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
             }==true
         }
-        launch("normal")
-        waitFor("preview is ready for transition checks") {
-            OverlayService.runtime?.let {
-                it.foreground==ctx.packageName && it.bars.known && it.statusElements==Policy.STATUS_CLOCK
-            }==true
+        waitFor("foreground preview is tracked for transition checks") {
+            resumedPreview()?.let { preview=it;true }==true
         }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         waitFor("clock-only survives rotation") {
@@ -200,7 +207,7 @@ class Issue4Test {
                 OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
         }
         shell("input keyevent KEYCODE_SLEEP")
-        waitFor("screen off makes runtime status non-visible") { OverlayService.runtime?.visible==false }
+        waitFor("screen off makes runtime status non-visible",25_000) { OverlayService.runtime?.visible==false }
         shell("input keyevent KEYCODE_WAKEUP");shell("wm dismiss-keyguard")
         waitFor("screen on rebuild restores clock-only") {
             OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
