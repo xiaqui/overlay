@@ -177,6 +177,7 @@ class Issue4Test {
                     it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
             }==true
         }
+        main { preview!!.finish() }
         launch("normal")
         waitFor("returning app restores its clock-only rule") {
             OverlayService.runtime?.let {
