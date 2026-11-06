@@ -53,6 +53,7 @@ jobs:
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p delivery
@@ -63,6 +64,18 @@ jobs:
           grep -qi "certificate SHA-256 digest: $EXPECTED" delivery/SIGNATURE.txt
           "$TOOLS/aapt" dump badging delivery/Overlay.apk > delivery/PACKAGE.txt
           grep -q "package: name='com.xiaqui.overlay'" delivery/PACKAGE.txt
+          grep -q "versionCode='6'" delivery/PACKAGE.txt
+          grep -q "versionName='0.6.0-display-controls'" delivery/PACKAGE.txt
+          grep -q "sdkVersion:'23'" delivery/PACKAGE.txt
+          grep -q "targetSdkVersion:'25'" delivery/PACKAGE.txt
+          if grep -q 'application-debuggable' delivery/PACKAGE.txt; then exit 1; fi
+          if "$TOOLS/aapt" dump permissions delivery/Overlay.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
+          mkdir -p "$RUNNER_TEMP/baseline"
+          gh release download overlay-0.2.0-2f942bba --pattern Overlay.apk --dir "$RUNNER_TEMP/baseline"
+          echo "a5fbf73e08e5e985a6b11c12fc81078d7f52f134cd3633b93c9a3892b472fe1b  $RUNNER_TEMP/baseline/Overlay.apk" | sha256sum -c -
+          "$TOOLS/apksigner" verify --print-certs --min-sdk-version 23 "$RUNNER_TEMP/baseline/Overlay.apk" > "$RUNNER_TEMP/baseline-signature.txt"
+          BASELINE=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/baseline-signature.txt")
+          test "$EXPECTED" = "$BASELINE"
           sha256sum delivery/Overlay.apk > delivery/SHA256SUMS
           printf 'source_sha=%s\nrun_id=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > delivery/PROVENANCE.txt
       - uses: actions/upload-artifact@v4
@@ -74,3 +87,4 @@ jobs:
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/overlay-signing.jks"
+

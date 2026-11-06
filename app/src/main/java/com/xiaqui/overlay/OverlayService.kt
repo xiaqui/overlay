@@ -17,6 +17,7 @@ class OverlayService : Service() {
     private val handler=Handler(Looper.getMainLooper())
     private val windows=mutableListOf<View>()
     private val statusViews=mutableListOf<StatusView>()
+    private var lastStatusElements=-1
     private var observation: BarObservation?=null
     private var bars=BarState()
     private var lastCornerLayout: List<CornerOffset>?=null
@@ -122,7 +123,7 @@ class OverlayService : Service() {
         statusbarLayer?.clear();statusbarLayer=null;recentsDetector=null;recentsTintSuppressed=false
         observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
-        windows.clear();cornerWindows.clear();statusViews.clear();lastMask=-1;runtime=null
+        windows.clear();cornerWindows.clear();statusViews.clear();lastStatusElements=-1;lastMask=-1;runtime=null
     }
     private fun params(width: Int,height: Int,gravityValue: Int,typeValue: Int=activeType)=WindowManager.LayoutParams(
         width,height,typeValue,
@@ -134,6 +135,37 @@ class OverlayService : Service() {
         title="Overlay"
     }
     private fun add(view: View,p: WindowManager.LayoutParams) { wm.addView(view,p);windows.add(view) }
+    private fun globalStatusElements()=
+        (if(settings.bool("clock",true))Policy.STATUS_CLOCK else 0) or
+            (if(settings.bool("battery",true))Policy.STATUS_BATTERY else 0)
+    private fun syncStatusWindows(elements: Int) {
+        if(elements==lastStatusElements)return
+        statusViews.toList().forEach { view->
+            statusViews.remove(view)
+            if(windows.remove(view))wm.removeViewImmediate(view)
+        }
+        if(elements==0 || !screenOn) { lastStatusElements=elements;return }
+        val density=resources.displayMetrics.density
+        fun attachStatus(mask: Int,gravity: Int) {
+            val view=StatusView(this,settings,mask).apply {
+                percent=battery;charging=this@OverlayService.charging
+            }
+            val p=params(-2,-2,Gravity.TOP or gravity).apply {
+                x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
+            }
+            add(view,p);statusViews.add(view)
+            view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
+                if(statusViews.contains(view))publishRuntime()
+            }
+        }
+        if(settings.clockOnLeft()) {
+            if(elements and Policy.STATUS_CLOCK!=0)attachStatus(Policy.STATUS_CLOCK,Gravity.LEFT)
+            if(elements and Policy.STATUS_BATTERY!=0)attachStatus(Policy.STATUS_BATTERY,Gravity.RIGHT)
+        } else {
+            attachStatus(elements,Gravity.RIGHT)
+        }
+        lastStatusElements=elements
+    }
     private fun rebuild() {
         if(!::settings.isInitialized) return
         syncNavbarPackages()
@@ -153,28 +185,8 @@ class OverlayService : Service() {
                         if(it.attach())statusbarLayer=it
                     }
                 }
-                val density=resources.displayMetrics.density
-                fun attachStatus(elements: Int,gravity: Int) {
-                    val view=StatusView(this,settings,elements).apply {
-                        percent=battery;charging=this@OverlayService.charging
-                    }
-                    val p=params(-2,-2,Gravity.TOP or gravity).apply {
-                        x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
-                    }
-                    add(view,p);statusViews.add(view)
-                    view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
-                        if(statusViews.contains(view))publishRuntime()
-                    }
-                }
-                if(settings.clockOnLeft()) {
-                    if(settings.bool("clock",true))attachStatus(StatusView.ELEMENT_CLOCK,Gravity.LEFT)
-                    if(settings.bool("battery",true))attachStatus(StatusView.ELEMENT_BATTERY,Gravity.RIGHT)
-                } else if(settings.bool("clock",true) || settings.bool("battery",true)) {
-                    attachStatus(StatusView.ELEMENT_CLOCK or StatusView.ELEMENT_BATTERY,Gravity.RIGHT)
-                }
                 if(settings.needsBars())attachBarObservation()
-                updateStatusVisibility()
-                updateForeground();updateCorners()
+                updateForeground();updateStatusVisibility();updateCorners()
                 settings.prefs.edit().putString("diagnostic",if(type==2006)"旧方式 2006（バーとの重なりは機種依存）" else "互換方式 2038（システムバーより背面）").apply()
                 handler.post(minute)
                 if(settings.needsBars() || (settings.hasRules() && usageAllowed(this)))handler.post(poll)
@@ -212,20 +224,21 @@ class OverlayService : Service() {
         try { bars=observation?.read() ?: BarState() } finally { updatingBars=false }
     }
     private fun updateStatusVisibility() {
-        val exception=foreground?.let { settings.displayRule(it) } ?: 0
-        val visible=Policy.statusVisible(settings.bool("fullscreen"),exception,bars)
-        statusViews.forEach { it.visibility=if(screenOn && visible)View.VISIBLE else View.INVISIBLE }
+        val exception=foreground?.let { settings.displayRule(it) } ?: Policy.DISPLAY_AUTO
+        val elements=Policy.statusElements(settings.bool("fullscreen"),exception,bars,globalStatusElements())
+        syncStatusWindows(elements)
+        statusViews.forEach { it.visibility=View.VISIBLE }
         publishRuntime()
     }
     private fun publishRuntime() {
-        runtime=RuntimeState(statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
+        runtime=RuntimeState(screenOn && statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
             navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,
             statusbarLayer?.let { StatusbarRuntime(screenOn && it.ready,navbarCandidate?.color,it.view?.height ?: 0,
                 it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType,statusViews.map {
                     val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
-                })
+                },lastStatusElements.coerceAtLeast(0))
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -375,7 +388,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?) : IBinder?=null
     data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int,val draws: Int=0)
     data class StatusbarRuntime(val active: Boolean,val color: Int?,val height: Int,val reason: String,val draws: Int=0)
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList())
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList(),val statusElements: Int=0)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {

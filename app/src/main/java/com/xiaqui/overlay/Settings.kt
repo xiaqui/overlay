@@ -24,9 +24,12 @@ class Settings(context: Context) {
     fun set(key: String,value: Int) { prefs.edit().putInt(key,value).apply() }
     fun rule(pkg: String)=Policy.mode(number("corner2:$pkg",Policy.NORMAL))
     fun setRule(pkg: String,mode: Int) { prefs.edit().putInt("corner2:$pkg",Policy.mode(mode)).apply() }
-    fun displayRule(pkg: String)=number("display:$pkg",0).coerceIn(0,2)
+    fun displayRule(pkg: String)=Policy.displayRule(number("display:$pkg",Policy.DISPLAY_AUTO))
     fun setDisplayRule(pkg: String,value: Int) {
-        prefs.edit().apply { if(value==0)remove("display:$pkg") else putInt("display:$pkg",value.coerceIn(1,2)) }.apply()
+        prefs.edit().apply {
+            if(value==Policy.DISPLAY_AUTO)remove("display:$pkg")
+            else putInt("display:$pkg",value.coerceIn(Policy.DISPLAY_BOTH,Policy.DISPLAY_BATTERY))
+        }.apply()
     }
     fun navbarEnabled()=bool("navbar_enabled")
     fun unifiedBars()=navbarEnabled() && bool("navbar_unified")

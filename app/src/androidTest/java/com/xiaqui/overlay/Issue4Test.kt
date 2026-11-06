@@ -145,8 +145,34 @@ class Issue4Test {
         waitFor("force display exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.visible }==true }
         main { settings.setDisplayRule(ctx.packageName,2) }
         waitFor("force hide exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && !it.visible }==true }
+        main { settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_CLOCK) }
+        assertEquals(Policy.DISPLAY_CLOCK,Settings(ctx).displayRule(ctx.packageName))
+        waitFor("clock-only exception removes the battery window/content") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible &&
+                    it.statusElements==Policy.STATUS_CLOCK && it.statusLocations.size==1
+            }==true
+        }
+        main { settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_BATTERY) }
+        assertEquals(Policy.DISPLAY_BATTERY,Settings(ctx).displayRule(ctx.packageName))
+        waitFor("battery-only exception replaces clock without an invisible extra window") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible &&
+                    it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
+            }==true
+        }
+        main { settings.set("battery",false);settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_BATTERY) }
+        waitFor("global battery OFF wins over battery-only exception") {
+            OverlayService.runtime?.let { !it.visible && it.statusElements==0 && it.statusLocations.isEmpty() }==true
+        }
+        main { settings.set("battery",true);settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_CLOCK) }
+        waitFor("clock-only restores after global setting is restored") {
+            OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
         main { settings.set("fullscreen",false) }
-        waitFor("exception never disables always mode") { OverlayService.runtime?.visible==true }
+        waitFor("partial exception never changes always mode") {
+            OverlayService.runtime?.let { it.visible && it.statusElements==(Policy.STATUS_CLOCK or Policy.STATUS_BATTERY) }==true
+        }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
     }
     @Test fun legacyPrefsMigrateOnceWithoutDestroyingOriginals() {
@@ -168,4 +194,5 @@ class Issue4Test {
         }
     }
 }
+
 

@@ -88,8 +88,8 @@ class StatusView(
         }
     }
     companion object {
-        internal const val ELEMENT_CLOCK=1
-        internal const val ELEMENT_BATTERY=2
+        internal const val ELEMENT_CLOCK=Policy.STATUS_CLOCK
+        internal const val ELEMENT_BATTERY=Policy.STATUS_BATTERY
         internal const val SHADOW_RADIUS_DP=0.55f
         internal const val SHADOW_DX_DP=0.55f
         internal const val SHADOW_DY_DP=0.65f
