@@ -54,7 +54,7 @@ class MainActivity: Activity() {
         }
         content.addView(text(settings.prefs.getString("diagnostic","まだ開始していません") ?: ""))
         toggle("時計","clock",true);toggle("電池","battery",true)
-        button("時計の左右配置：\${if(settings.clockOnLeft())"左" else "右（標準）"}") {
+        button("時計の左右配置：" + (if(settings.clockOnLeft())"左" else "右（標準）")) {
             AlertDialog.Builder(this).setTitle("時計の左右配置").setSingleChoiceItems(
                 arrayOf("右（標準：電池と時計を右上）","左（時計を左上・電池を右上）"),
                 if(settings.clockOnLeft())1 else 0
