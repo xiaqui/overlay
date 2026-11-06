@@ -27,6 +27,9 @@ jobs:
           WORKFLOW_NAME: ${{ github.workflow }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_HEAD_REF" = "work/fullscreen-elements-20261106" ]; then
+            gh api --method DELETE "repos/$GH_REPO/actions/artifacts/13494605154"
+          fi
           gh api --method GET "repos/$GH_REPO/actions/runs" -f event=pull_request -f branch="$PR_BRANCH" -f per_page=100 > "$RUNNER_TEMP/runs.json"
           jq -r --arg name "$WORKFLOW_NAME" --argjson current "$GITHUB_RUN_ID" '.workflow_runs[] | select(.name == $name and .id < $current and .status != "completed") | .id' "$RUNNER_TEMP/runs.json" | while read -r id; do
             gh api --method POST "repos/$GH_REPO/actions/runs/$id/cancel" || true

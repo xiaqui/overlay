@@ -74,6 +74,13 @@ class PolicyTest {
         for(sdk in 26..29)assertEquals(listOf(2006,2038),Policy.windowTypes(sdk,false))
         for(sdk in 26..29)assertEquals(listOf(2038),Policy.windowTypes(sdk,false,true))
         assertEquals(listOf(2006),Policy.windowTypes(23,false,true))
+        assertTrue(Policy.shouldRetryModernWindow(26,2006,2006,true,false))
+        assertFalse("overlay permission loss must not masquerade as a legacy-type rejection",
+            Policy.shouldRetryModernWindow(26,2006,2006,false,false))
+        assertFalse(Policy.shouldRetryModernWindow(25,2006,2006,true,false))
+        assertFalse(Policy.shouldRetryModernWindow(26,2038,2038,true,false))
+        assertFalse(Policy.shouldRetryModernWindow(26,2006,2002,true,false))
+        assertFalse(Policy.shouldRetryModernWindow(26,2006,2006,true,true))
     }
     @Test fun minuteSchedulingNeverBusyLoops() {
         assertEquals(60_000L,Policy.nextMinute(60_000));assertEquals(1L,Policy.nextMinute(119_999));assertEquals(1L,Policy.nextMinute(-1))

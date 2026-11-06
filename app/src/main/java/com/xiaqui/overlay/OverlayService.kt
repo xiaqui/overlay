@@ -141,12 +141,14 @@ class OverlayService : Service() {
     private fun add(view: View,p: WindowManager.LayoutParams) {
         try { wm.addView(view,p) }
         catch (error: SecurityException) {
-            if(Build.VERSION.SDK_INT>=26 && p.type==2006 && SystemSettings.canDrawOverlays(this))
+            if(Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,p.type,
+                    SystemSettings.canDrawOverlays(this),legacyTypeRejected))
                 throw LegacyWindowRejected(error)
             throw error
         }
         catch (error: WindowManager.BadTokenException) {
-            if(Build.VERSION.SDK_INT>=26 && p.type==2006)throw LegacyWindowRejected(error)
+            if(Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,p.type,
+                    true,legacyTypeRejected))throw LegacyWindowRejected(error)
             throw error
         }
         windows.add(view)
@@ -250,7 +252,8 @@ class OverlayService : Service() {
         }
     }
     private fun retryModernAfterLegacyRejection(): Boolean {
-        if(Build.VERSION.SDK_INT<26 || activeType!=2006 || legacyTypeRejected)return false
+        if(!Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,2006,
+                true,legacyTypeRejected))return false
         legacyTypeRejected=true
         handler.removeCallbacks(minute);handler.removeCallbacks(poll);handler.removeCallbacks(onBarsChanged)
         handler.post { if(screenOn && settings.bool("enabled"))rebuild() }

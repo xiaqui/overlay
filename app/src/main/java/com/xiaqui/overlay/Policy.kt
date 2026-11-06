@@ -58,6 +58,9 @@ object Policy {
         modern || legacyRejected->listOf(2038)
         else->listOf(2006,2038)
     }
+    fun shouldRetryModernWindow(sdk: Int,activeType: Int,attemptedType: Int,
+        overlayAllowed: Boolean,legacyRejected: Boolean): Boolean =
+        sdk>=26 && activeType==2006 && attemptedType==2006 && overlayAllowed && !legacyRejected
     fun nextMinute(now: Long): Long=60_000L-((now%60_000L+60_000L)%60_000L)
 }
 
