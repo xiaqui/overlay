@@ -177,6 +177,79 @@ class NavbarTest {
         combinedImage.recycle()
         assertTrue("clock restores its shadow after the charging bolt clears paint shadow",clockContrast>10)
     }
+    @Test fun batteryDirectionMirrorsTerminalFillAndChargingAppearance() {
+        assertFalse("existing installs default to the legacy right-terminal direction",settings.batteryReversed())
+        settings.set("size",14);settings.set("clock",false);settings.set("battery",true);settings.set("color",0)
+        val density=ctx.resources.displayMetrics.density
+        val size=14*ctx.resources.displayMetrics.scaledDensity
+        val cap=maxOf(1.2f*density,size*0.08f)
+        val bw=size*0.94f
+        val inset=maxOf(1.2f*density,size*0.07f)
+        data class Shot(val image: Bitmap,val bodyX: Float,val centerY: Int)
+        fun shot(percent: Int,reversed: Boolean,charging: Boolean=false,background: Int=Color.BLACK): Shot {
+            settings.set("battery_reversed",reversed)
+            val view=StatusView(ctx,settings,StatusView.ELEMENT_BATTERY).apply {
+                this.percent=percent;this.charging=charging
+            }
+            view.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+            view.layout(0,0,view.measuredWidth,view.measuredHeight)
+            val image=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
+            image.eraseColor(background);view.draw(Canvas(image))
+            return Shot(image,3*density+(if(reversed)cap else 0f),view.height/2)
+        }
+        fun filledCount(percent: Int,reversed: Boolean): Int {
+            val s=shot(percent,reversed)
+            var count=0
+            for(px in kotlin.math.ceil(s.bodyX+inset).toInt() until kotlin.math.floor(s.bodyX+bw-inset).toInt()) {
+                val c=s.image.getPixel(px,s.centerY)
+                if(Color.red(c)>180 && Color.green(c)>180 && Color.blue(c)>180)count++
+            }
+            s.image.recycle();return count
+        }
+        for(reversed in listOf(false,true)) {
+            val counts=listOf(0,20,50,80,100).map { filledCount(it,reversed) }
+            assertTrue("0/20/50/80/100 fill grows at every step for reversed=$reversed: $counts",counts.zipWithNext().all { it.first<it.second })
+            assertTrue("full battery fills more than empty for reversed=$reversed: $counts",counts.last()>counts.first()+5)
+        }
+        val normal=shot(20,false)
+        fun halfFill(shot: Shot): Pair<Int,Int> {
+            val left=kotlin.math.ceil(shot.bodyX+inset).toInt()
+            val right=kotlin.math.floor(shot.bodyX+bw-inset).toInt()
+            val middle=(left+right)/2
+            var leftCount=0;var rightCount=0
+            for(px in left until right) {
+                if(Color.red(shot.image.getPixel(px,shot.centerY))>180) {
+                    if(px<middle)leftCount++ else rightCount++
+                }
+            }
+            return leftCount to rightCount
+        }
+        val normalHalves=halfFill(normal)
+        assertTrue("normal 20% fills from left: $normalHalves",normalHalves.first>normalHalves.second)
+        assertTrue("normal terminal is on right",Color.red(normal.image.getPixel((normal.bodyX+bw+cap/2).toInt(),normal.centerY))>180)
+        normal.image.recycle()
+        val reverse=shot(20,true)
+        val reverseHalves=halfFill(reverse)
+        assertTrue("reversed 20% fills from right: $reverseHalves",reverseHalves.second>reverseHalves.first)
+        assertTrue("reversed terminal is on left",Color.red(reverse.image.getPixel((reverse.bodyX-cap/2).toInt(),reverse.centerY))>180)
+        reverse.image.recycle()
+        val normalBolt=StatusView.batteryBoltPoints(false)
+        val reverseBolt=StatusView.batteryBoltPoints(true)
+        for(i in normalBolt.indices step 2) {
+            assertEquals("charging bolt x point $i mirrors",1f-normalBolt[i],reverseBolt[i],0.0001f)
+            assertEquals("charging bolt y point " + (i+1) + " stays aligned",normalBolt[i+1],reverseBolt[i+1],0.0001f)
+        }
+        for(reversed in listOf(false,true))for(background in listOf(Color.WHITE,Color.BLACK)) {
+            val charging=shot(50,reversed,true,background)
+            var contrast=0
+            for(py in 0 until charging.image.height)for(px in 0 until charging.image.width) {
+                val c=charging.image.getPixel(px,py)
+                if(background==Color.WHITE && Color.red(c)<180 || background==Color.BLACK && Color.red(c)>180)contrast++
+            }
+            charging.image.recycle()
+            assertTrue("charging silhouette remains visible reversed=$reversed background=$background",contrast>10)
+        }
+    }
     @Test fun resourcesCacheCanvasOrderAndFailedWindowRollback() {
         val colors=NavbarColors(ctx)
         assertEquals("foreign APK application theme",0xff426a88.toInt(),colors.themeColor(inst.context.packageName))
