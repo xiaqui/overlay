@@ -5,6 +5,8 @@ import android.content.pm.ActivityInfo
 import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -17,8 +19,8 @@ class Issue4Test {
     private var preview: PreviewActivity?=null
     private fun shell(command: String): String=ParcelFileDescriptor.AutoCloseInputStream(inst.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
     private fun main(action: ()->Unit)=inst.runOnMainSync(action)
-    private fun waitFor(message: String,condition: ()->Boolean) {
-        val end=android.os.SystemClock.elapsedRealtime()+12_000
+    private fun waitFor(message: String,timeoutMs: Long=12_000,condition: ()->Boolean) {
+        val end=android.os.SystemClock.elapsedRealtime()+timeoutMs
         while(android.os.SystemClock.elapsedRealtime()<end) {
             if(condition())return
             android.os.SystemClock.sleep(150)
@@ -43,7 +45,13 @@ class Issue4Test {
     }
     @After fun after() {
         main {
-            preview?.finish();settings.set("enabled",false);ctx.stopService(Intent(ctx,OverlayService::class.java))
+            val activities=linkedSetOf<PreviewActivity>()
+            preview?.let { activities.add(it) }
+            val monitor=ActivityLifecycleMonitorRegistry.getInstance()
+            for(stage in listOf(Stage.CREATED,Stage.STARTED,Stage.RESUMED,Stage.PAUSED,Stage.STOPPED))
+                activities.addAll(monitor.getActivitiesInStage(stage).filterIsInstance<PreviewActivity>())
+            activities.forEach { it.finish() };preview=null
+            settings.set("enabled",false);ctx.stopService(Intent(ctx,OverlayService::class.java))
         }
         waitFor("service cleanup") { !shell("dumpsys activity services ${ctx.packageName}").contains("ServiceRecord{") }
         main { settings.prefs.edit().clear().commit() }
@@ -52,6 +60,14 @@ class Issue4Test {
         preview=inst.startActivitySync(Intent(ctx,PreviewActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("bars",mode)) as PreviewActivity
         inst.waitForIdleSync()
+    }
+    private fun resumedPreview(): PreviewActivity? {
+        var result: PreviewActivity?=null
+        main {
+            result=ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(Stage.RESUMED).filterIsInstance<PreviewActivity>().firstOrNull()
+        }
+        return result
     }
     private fun enable()=main {
         settings.set("top",true);settings.set("bottom",true);settings.set("fullscreen",true)
@@ -145,9 +161,82 @@ class Issue4Test {
         waitFor("force display exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.visible }==true }
         main { settings.setDisplayRule(ctx.packageName,2) }
         waitFor("force hide exception") { OverlayService.runtime?.let { it.foreground==ctx.packageName && !it.visible }==true }
-        main { settings.set("fullscreen",false) }
-        waitFor("exception never disables always mode") { OverlayService.runtime?.visible==true }
+        main { settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_CLOCK) }
+        assertEquals(Policy.DISPLAY_CLOCK,Settings(ctx).displayRule(ctx.packageName))
+        waitFor("clock-only exception removes the battery window/content") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible &&
+                    it.statusElements==Policy.STATUS_CLOCK && it.statusLocations.size==1
+            }==true
+        }
+        main { settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_BATTERY) }
+        assertEquals(Policy.DISPLAY_BATTERY,Settings(ctx).displayRule(ctx.packageName))
+        waitFor("battery-only exception replaces clock without an invisible extra window") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible &&
+                    it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
+            }==true
+        }
+        main { settings.set("battery",false);settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_BATTERY) }
+        waitFor("global battery OFF wins over battery-only exception") {
+            OverlayService.runtime?.let { !it.visible && it.statusElements==0 && it.statusLocations.isEmpty() }==true
+        }
+        main { settings.set("battery",true);settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_CLOCK) }
+        waitFor("clock-only restores after global setting is restored") {
+            OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
+        main { settings.setDisplayRule("com.android.settings",Policy.DISPLAY_BATTERY) }
+        ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitFor("app switch applies the other package's battery-only rule without a preference rebuild") {
+            OverlayService.runtime?.let {
+                it.foreground=="com.android.settings" && it.visible &&
+                    it.statusElements==Policy.STATUS_BATTERY && it.statusLocations.size==1
+            }==true
+        }
+        shell("am start -n ${ctx.packageName}/.PreviewActivity --es bars normal")
+        waitFor("returning app restores its clock-only rule") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
+            }==true
+        }
+        waitFor("foreground preview is tracked for transition checks") {
+            resumedPreview()?.let { preview=it;true }==true
+        }
+        main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        waitFor("clock-only survives rotation") {
+            ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        waitFor("clock-only restores after portrait rotation") {
+            ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT &&
+                OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+        }
+        // The API 23 emulator does not reliably wake again after KEYCODE_SLEEP and can leave
+        // the instrumentation process blocked. API 24-29 exercise the real broadcast path;
+        // Android 6 screen-off/on remains an explicit Xperia device acceptance item.
+        if(android.os.Build.VERSION.SDK_INT>=24) {
+            shell("input keyevent KEYCODE_SLEEP")
+            waitFor("screen off makes runtime status non-visible",25_000) { OverlayService.runtime?.visible==false }
+            shell("input keyevent KEYCODE_WAKEUP");shell("wm dismiss-keyguard")
+            waitFor("screen on rebuild restores clock-only") {
+                OverlayService.runtime?.let { it.visible && it.statusElements==Policy.STATUS_CLOCK }==true
+            }
+        }
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS ignore")
+        waitFor("usage access revoke safely falls back to auto mode") {
+            OverlayService.runtime?.let { it.foreground==null && !it.visible && it.statusElements==0 }==true
+        }
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS allow")
+        waitFor("usage access restore recovers foreground and clock-only rule without an app event") {
+            OverlayService.runtime?.let {
+                it.foreground==ctx.packageName && it.visible && it.statusElements==Policy.STATUS_CLOCK
+            }==true
+        }
+        main { settings.set("fullscreen",false) }
+        waitFor("partial exception never changes always mode") {
+            OverlayService.runtime?.let { it.visible && it.statusElements==(Policy.STATUS_CLOCK or Policy.STATUS_BATTERY) }==true
+        }
     }
     @Test fun legacyPrefsMigrateOnceWithoutDestroyingOriginals() {
         main {
@@ -168,4 +257,5 @@ class Issue4Test {
         }
     }
 }
+
 

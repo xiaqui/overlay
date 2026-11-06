@@ -49,13 +49,41 @@ class PolicyTest {
     @Test fun appExceptionsDoNotChangeAlwaysMode() {
         assertTrue(Policy.statusVisible(true,1,BarState(true,top=24)))
         assertFalse(Policy.statusVisible(true,2,BarState(true)))
-        for(e in 0..2)assertTrue(Policy.statusVisible(false,e,BarState(true,top=24)))
+        assertTrue(Policy.statusVisible(true,3,BarState(true,top=24)))
+        assertTrue(Policy.statusVisible(true,4,BarState(true,top=24)))
+        for(e in 0..4)assertTrue(Policy.statusVisible(false,e,BarState(true,top=24)))
+    }
+    @Test fun fullscreenExceptionsSelectElementsWithoutOverridingGlobalOff() {
+        assertEquals(Policy.DISPLAY_AUTO,Policy.displayRule(-1))
+        assertEquals(Policy.DISPLAY_NONE,Policy.displayRule(999))
+        for(rule in 0..4)assertEquals(rule,Policy.displayRule(rule))
+        val normal=BarState(true,top=24)
+        val hidden=BarState(true,top=0)
+        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_AUTO,normal,3))
+        assertEquals(3,Policy.statusElements(true,Policy.DISPLAY_AUTO,hidden,3))
+        assertEquals(3,Policy.statusElements(true,Policy.DISPLAY_BOTH,normal,3))
+        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_NONE,hidden,3))
+        assertEquals(Policy.STATUS_CLOCK,Policy.statusElements(true,Policy.DISPLAY_CLOCK,normal,3))
+        assertEquals(Policy.STATUS_BATTERY,Policy.statusElements(true,Policy.DISPLAY_BATTERY,normal,3))
+        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_CLOCK,normal,Policy.STATUS_BATTERY))
+        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_BATTERY,normal,Policy.STATUS_CLOCK))
+        for(rule in 0..4)assertEquals(Policy.STATUS_CLOCK,Policy.statusElements(false,rule,normal,Policy.STATUS_CLOCK))
     }
     @Test fun supportedWindowTypes() {
         for(sdk in 23..25)assertEquals(listOf(2006),Policy.windowTypes(sdk,true))
         for(sdk in 26..29)assertEquals(listOf(2006,2038),Policy.windowTypes(sdk,false))
+        for(sdk in 26..29)assertEquals(listOf(2038),Policy.windowTypes(sdk,false,true))
+        assertEquals(listOf(2006),Policy.windowTypes(23,false,true))
+        assertTrue(Policy.shouldRetryModernWindow(26,2006,2006,true,false))
+        assertFalse("overlay permission loss must not masquerade as a legacy-type rejection",
+            Policy.shouldRetryModernWindow(26,2006,2006,false,false))
+        assertFalse(Policy.shouldRetryModernWindow(25,2006,2006,true,false))
+        assertFalse(Policy.shouldRetryModernWindow(26,2038,2038,true,false))
+        assertFalse(Policy.shouldRetryModernWindow(26,2006,2002,true,false))
+        assertFalse(Policy.shouldRetryModernWindow(26,2006,2006,true,true))
     }
     @Test fun minuteSchedulingNeverBusyLoops() {
         assertEquals(60_000L,Policy.nextMinute(60_000));assertEquals(1L,Policy.nextMinute(119_999));assertEquals(1L,Policy.nextMinute(-1))
     }
 }
+

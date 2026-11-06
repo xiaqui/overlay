@@ -12,11 +12,13 @@ import android.view.*
 
 @Suppress("DEPRECATION")
 class OverlayService : Service() {
+    private class LegacyWindowRejected(cause: Throwable): RuntimeException(cause)
     private lateinit var settings: Settings
     private lateinit var wm: WindowManager
     private val handler=Handler(Looper.getMainLooper())
     private val windows=mutableListOf<View>()
     private val statusViews=mutableListOf<StatusView>()
+    private var lastStatusElements=-1
     private var observation: BarObservation?=null
     private var bars=BarState()
     private var lastCornerLayout: List<CornerOffset>?=null
@@ -30,6 +32,7 @@ class OverlayService : Service() {
     private var lastMask=-1
     private var receiverRegistered=false
     private var activeType=2006
+    private var legacyTypeRejected=false
     private val cornerWindows=mutableListOf<View>()
     private var navbarLayer: NavbarLayer?=null
     private var statusbarLayer: StatusbarLayer?=null
@@ -60,6 +63,7 @@ class OverlayService : Service() {
             if (!screenOn) return
             if (!SystemSettings.canDrawOverlays(this@OverlayService)) { fail("重ねて表示の権限が取り消されました");return }
             try { updateForeground();refreshBars();updateStatusVisibility();updateCorners() }
+            catch (_: LegacyWindowRejected) { retryModernAfterLegacyRejection();return }
             catch (_: SecurityException) { fail("表示権限または使用状況の許可を確認してください");return }
             catch (_: WindowManager.BadTokenException) { fail("表示ウィンドウが拒否されました");return }
             handler.postDelayed(this,if(settings.needsBars())500 else 1000)
@@ -74,6 +78,7 @@ class OverlayService : Service() {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn=false;handler.removeCallbacks(minute);handler.removeCallbacks(poll)
                     windows.forEach { it.visibility=View.GONE }
+                    publishRuntime()
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn=true;lastQuery=0;rebuild()
@@ -122,7 +127,7 @@ class OverlayService : Service() {
         statusbarLayer?.clear();statusbarLayer=null;recentsDetector=null;recentsTintSuppressed=false
         observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
-        windows.clear();cornerWindows.clear();statusViews.clear();lastMask=-1;runtime=null
+        windows.clear();cornerWindows.clear();statusViews.clear();lastStatusElements=-1;lastMask=-1;runtime=null
     }
     private fun params(width: Int,height: Int,gravityValue: Int,typeValue: Int=activeType)=WindowManager.LayoutParams(
         width,height,typeValue,
@@ -133,7 +138,53 @@ class OverlayService : Service() {
         if(Build.VERSION.SDK_INT>=28) layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         title="Overlay"
     }
-    private fun add(view: View,p: WindowManager.LayoutParams) { wm.addView(view,p);windows.add(view) }
+    private fun add(view: View,p: WindowManager.LayoutParams) {
+        try { wm.addView(view,p) }
+        catch (error: SecurityException) {
+            if(Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,p.type,
+                    SystemSettings.canDrawOverlays(this),legacyTypeRejected))
+                throw LegacyWindowRejected(error)
+            throw error
+        }
+        catch (error: WindowManager.BadTokenException) {
+            if(Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,p.type,
+                    SystemSettings.canDrawOverlays(this),legacyTypeRejected))
+                throw LegacyWindowRejected(error)
+            throw error
+        }
+        windows.add(view)
+    }
+    private fun globalStatusElements()=
+        (if(settings.bool("clock",true))Policy.STATUS_CLOCK else 0) or
+            (if(settings.bool("battery",true))Policy.STATUS_BATTERY else 0)
+    private fun syncStatusWindows(elements: Int) {
+        if(elements==lastStatusElements)return
+        statusViews.toList().forEach { view->
+            statusViews.remove(view)
+            if(windows.remove(view))wm.removeViewImmediate(view)
+        }
+        if(elements==0 || !screenOn) { lastStatusElements=elements;return }
+        val density=resources.displayMetrics.density
+        fun attachStatus(mask: Int,gravity: Int) {
+            val view=StatusView(this,settings,mask).apply {
+                percent=battery;charging=this@OverlayService.charging
+            }
+            val p=params(-2,-2,Gravity.TOP or gravity).apply {
+                x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
+            }
+            add(view,p);statusViews.add(view)
+            view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
+                if(statusViews.contains(view))publishRuntime()
+            }
+        }
+        if(settings.clockOnLeft()) {
+            if(elements and Policy.STATUS_CLOCK!=0)attachStatus(Policy.STATUS_CLOCK,Gravity.LEFT)
+            if(elements and Policy.STATUS_BATTERY!=0)attachStatus(Policy.STATUS_BATTERY,Gravity.RIGHT)
+        } else {
+            attachStatus(elements,Gravity.RIGHT)
+        }
+        lastStatusElements=elements
+    }
     private fun rebuild() {
         if(!::settings.isInitialized) return
         syncNavbarPackages()
@@ -141,7 +192,7 @@ class OverlayService : Service() {
         if(!settings.bool("enabled")) { stopSelf();return }
         if(!SystemSettings.canDrawOverlays(this)) { fail("重ねて表示を許可してください");return }
         if(!screenOn)return
-        val types=Policy.windowTypes(Build.VERSION.SDK_INT,settings.bool("modern"))
+        val types=Policy.windowTypes(Build.VERSION.SDK_INT,settings.bool("modern"),legacyTypeRejected)
         for(type in types) {
             activeType=type
             try {
@@ -153,34 +204,24 @@ class OverlayService : Service() {
                         if(it.attach())statusbarLayer=it
                     }
                 }
-                val density=resources.displayMetrics.density
-                fun attachStatus(elements: Int,gravity: Int) {
-                    val view=StatusView(this,settings,elements).apply {
-                        percent=battery;charging=this@OverlayService.charging
-                    }
-                    val p=params(-2,-2,Gravity.TOP or gravity).apply {
-                        x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
-                    }
-                    add(view,p);statusViews.add(view)
-                    view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
-                        if(statusViews.contains(view))publishRuntime()
-                    }
-                }
-                if(settings.clockOnLeft()) {
-                    if(settings.bool("clock",true))attachStatus(StatusView.ELEMENT_CLOCK,Gravity.LEFT)
-                    if(settings.bool("battery",true))attachStatus(StatusView.ELEMENT_BATTERY,Gravity.RIGHT)
-                } else if(settings.bool("clock",true) || settings.bool("battery",true)) {
-                    attachStatus(StatusView.ELEMENT_CLOCK or StatusView.ELEMENT_BATTERY,Gravity.RIGHT)
-                }
                 if(settings.needsBars())attachBarObservation()
-                updateStatusVisibility()
-                updateForeground();updateCorners()
+                updateForeground();updateStatusVisibility();updateCorners()
                 settings.prefs.edit().putString("diagnostic",if(type==2006)"旧方式 2006（バーとの重なりは機種依存）" else "互換方式 2038（システムバーより背面）").apply()
                 handler.post(minute)
                 if(settings.needsBars() || (settings.hasRules() && usageAllowed(this)))handler.post(poll)
                 return
-            } catch (_: SecurityException) { clearWindows() }
-              catch (_: WindowManager.BadTokenException) { clearWindows() }
+            } catch (_: LegacyWindowRejected) {
+                legacyTypeRejected=true
+                clearWindows()
+            }
+              catch (_: SecurityException) {
+                if(Build.VERSION.SDK_INT>=26 && type==2006)legacyTypeRejected=true
+                clearWindows()
+            }
+              catch (_: WindowManager.BadTokenException) {
+                  if(Build.VERSION.SDK_INT>=26 && type==2006)legacyTypeRejected=true
+                  clearWindows()
+              }
         }
         fail("表示ウィンドウを作れません。権限・端末の制限を確認してください")
     }
@@ -203,8 +244,21 @@ class OverlayService : Service() {
     }
     private val onBarsChanged=Runnable {
         if(screenOn && observation!=null)try { refreshBars();updateStatusVisibility();updateCorners() }
-        catch (_: SecurityException) { fail("表示権限を確認してください") }
-        catch (_: WindowManager.BadTokenException) { fail("表示ウィンドウが拒否されました") }
+        catch (_: LegacyWindowRejected) { retryModernAfterLegacyRejection() }
+        catch (_: SecurityException) {
+            fail("表示権限を確認してください")
+        }
+        catch (_: WindowManager.BadTokenException) {
+            fail("表示ウィンドウが拒否されました")
+        }
+    }
+    private fun retryModernAfterLegacyRejection(): Boolean {
+        if(!Policy.shouldRetryModernWindow(Build.VERSION.SDK_INT,activeType,2006,
+                true,legacyTypeRejected))return false
+        legacyTypeRejected=true
+        handler.removeCallbacks(minute);handler.removeCallbacks(poll);handler.removeCallbacks(onBarsChanged)
+        handler.post { if(screenOn && settings.bool("enabled"))rebuild() }
+        return true
     }
     private fun refreshBars() {
         if(updatingBars)return
@@ -212,20 +266,21 @@ class OverlayService : Service() {
         try { bars=observation?.read() ?: BarState() } finally { updatingBars=false }
     }
     private fun updateStatusVisibility() {
-        val exception=foreground?.let { settings.displayRule(it) } ?: 0
-        val visible=Policy.statusVisible(settings.bool("fullscreen"),exception,bars)
-        statusViews.forEach { it.visibility=if(screenOn && visible)View.VISIBLE else View.INVISIBLE }
+        val exception=foreground?.let { settings.displayRule(it) } ?: Policy.DISPLAY_AUTO
+        val elements=Policy.statusElements(settings.bool("fullscreen"),exception,bars,globalStatusElements())
+        syncStatusWindows(elements)
+        statusViews.forEach { it.visibility=View.VISIBLE }
         publishRuntime()
     }
     private fun publishRuntime() {
-        runtime=RuntimeState(statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
+        runtime=RuntimeState(screenOn && statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
             navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,
             statusbarLayer?.let { StatusbarRuntime(screenOn && it.ready,navbarCandidate?.color,it.view?.height ?: 0,
                 it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType,statusViews.map {
                     val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
-                })
+                },lastStatusElements.coerceAtLeast(0))
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -297,9 +352,9 @@ class OverlayService : Service() {
     private fun updateForeground() {
         if(!settings.hasRules() || !usageAllowed(this)) {
             foreground=null;foregroundTarget=null
-            // Only the opt-in prototype resets the cursor on revoke: allow again may emit no
-            // new foreground event. Reuse the existing first-query recovery once permitted.
-            if(settings.navbarEnabled())lastQuery=0
+            // Permission may be restored without a new foreground event. Force a bounded
+            // first-query recovery so per-app display rules resume as well as Navbar rules.
+            lastQuery=0
             return
         }
         val now=System.currentTimeMillis()
@@ -375,7 +430,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?) : IBinder?=null
     data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int,val draws: Int=0)
     data class StatusbarRuntime(val active: Boolean,val color: Int?,val height: Int,val reason: String,val draws: Int=0)
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList())
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList(),val statusElements: Int=0)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {

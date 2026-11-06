@@ -82,7 +82,7 @@ class MainActivity: Activity() {
         button("使用状況へのアクセスを設定") { startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS)) }
         button("アプリ別の角丸配置") { chooseApp() }
         button("全画面判定のアプリ別例外") { chooseApp(true) }
-        content.addView(text("例外は「全画面のときだけ」がONのときに適用し、使用状況へのアクセスが必要です。通常の自動判定・常時表示はそのまま使えます。"))
+        content.addView(text("例外は「全画面のときだけ」がONのときに適用し、使用状況へのアクセスが必要です。「時計のみ」「電池のみ」は全体設定でONの要素だけを表示します。通常の自動判定・常時表示はそのまま使えます。"))
         content.addView(text("ナビバー着色（技術検証）",20f))
         toggle("ナビバー着色を試す（初期OFF）","navbar_enabled")
         toggle("テーマ・アイコンから自動色を推定","navbar_auto")
@@ -112,7 +112,9 @@ class MainActivity: Activity() {
             .distinctBy { it.activityInfo.packageName }.sortedBy { it.loadLabel(pm).toString() }
         AlertDialog.Builder(this).setTitle(if(display)"時計・電池の表示例外" else "アプリ別角丸").setItems(apps.map { it.loadLabel(pm).toString() }.toTypedArray()) { _,i ->
             val pkg=apps[i].activityInfo.packageName
-            val labels=if(display)arrayOf("自動判定","時計・電池を表示","時計・電池を非表示") else Policy.cornerLabels.toTypedArray()
+            val labels=if(display)arrayOf(
+                "自動判定","時計・電池を表示","時計・電池を非表示","時計のみ表示","電池のみ表示"
+            ) else Policy.cornerLabels.toTypedArray()
             val selection=if(display)settings.displayRule(pkg) else settings.rule(pkg)
             AlertDialog.Builder(this).setTitle(apps[i].loadLabel(pm)).setSingleChoiceItems(labels,selection) { dialog,n ->
                 if(display)settings.setDisplayRule(pkg,n) else settings.setRule(pkg,n);dialog.dismiss()

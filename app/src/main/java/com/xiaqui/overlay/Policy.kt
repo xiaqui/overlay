@@ -5,6 +5,18 @@ data class CornerOffset(val x: Int=0,val y: Int=0)
 
 /** Android-independent decisions, also exercised on the JVM. */
 object Policy {
+    const val STATUS_CLOCK=1
+    const val STATUS_BATTERY=2
+    const val DISPLAY_AUTO=0
+    const val DISPLAY_BOTH=1
+    const val DISPLAY_NONE=2
+    const val DISPLAY_CLOCK=3
+    const val DISPLAY_BATTERY=4
+    fun displayRule(value: Int)=when {
+        value<DISPLAY_AUTO->DISPLAY_AUTO
+        value>DISPLAY_BATTERY->DISPLAY_NONE // Legacy reader treated every value above 2 as hide.
+        else->value
+    }
     const val NONE=0
     const val NORMAL=1
     const val TOP_INSIDE=2
@@ -21,15 +33,34 @@ object Policy {
         if(corner<2)return CornerOffset(y=if(topInside && bars.known)bars.top.coerceAtLeast(0) else 0)
         return if(bottomInside)CornerOffset(x=(if(corner%2==0)bars.left else bars.right).coerceAtLeast(0),y=bars.bottom.coerceAtLeast(0)) else CornerOffset()
     }
-    // exception: 0=automatic, 1=always show, 2=always hide (only in fullscreen-only mode).
+    // Exceptions only affect fullscreen-only mode; values 0..2 retain their original meanings.
     fun statusVisible(fullscreenOnly: Boolean,exception: Int,bars: BarState)=
-        !fullscreenOnly || when(exception) {1->true;2->false;else->!bars.known || bars.top==0}
+        !fullscreenOnly || when(exception) {
+            DISPLAY_BOTH,DISPLAY_CLOCK,DISPLAY_BATTERY->true
+            DISPLAY_NONE->false
+            else->!bars.known || bars.top==0
+        }
+    fun statusElements(fullscreenOnly: Boolean,exception: Int,bars: BarState,global: Int): Int {
+        val allowed=global and (STATUS_CLOCK or STATUS_BATTERY)
+        if(!fullscreenOnly)return allowed
+        return when(exception) {
+            DISPLAY_BOTH->allowed
+            DISPLAY_NONE->0
+            DISPLAY_CLOCK->allowed and STATUS_CLOCK
+            DISPLAY_BATTERY->allowed and STATUS_BATTERY
+            else->if(!bars.known || bars.top==0)allowed else 0
+        }
+    }
     fun batteryPercent(level: Int,scale: Int): Int =
         if(level<0 || scale<=0)-1 else (100L*level/scale).coerceIn(0L,100L).toInt()
-    fun windowTypes(sdk: Int,modern: Boolean): List<Int> = when {
+    fun windowTypes(sdk: Int,modern: Boolean,legacyRejected: Boolean=false): List<Int> = when {
         sdk<26->listOf(2006)
-        modern->listOf(2038)
+        modern || legacyRejected->listOf(2038)
         else->listOf(2006,2038)
     }
+    fun shouldRetryModernWindow(sdk: Int,activeType: Int,attemptedType: Int,
+        overlayAllowed: Boolean,legacyRejected: Boolean): Boolean =
+        sdk>=26 && activeType==2006 && attemptedType==2006 && overlayAllowed && !legacyRejected
     fun nextMinute(now: Long): Long=60_000L-((now%60_000L+60_000L)%60_000L)
 }
+
