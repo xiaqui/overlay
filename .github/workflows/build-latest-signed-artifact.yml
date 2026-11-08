@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   build:
-    # The automatic path is a one-shot guard for the fourth/final merge in this Work.
+    # One-shot automatic delivery build after the reviewed battery-silhouette PR #23 merge.
     # Future main updates can only run this workflow through workflow_dispatch.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == '2d8741947c2ea0ea8e386bf9e95893cd8dff0166' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == 'f53793782ce3a6bd048c2b72b2a56493e0ed36ae' }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
