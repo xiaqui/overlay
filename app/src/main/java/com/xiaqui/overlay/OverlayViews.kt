@@ -94,6 +94,16 @@ class StatusView(
                     }
                     close()
                 }
+                // The dark bolt alone vanishes against the dark empty-capacity
+                // silhouette. Give it a narrow light keyline, then retain its
+                // original dark fill so it also remains visible over white charge.
+                paint.style=Paint.Style.STROKE
+                paint.strokeJoin=Paint.Join.ROUND
+                paint.strokeWidth=maxOf(0.65f*d,size*0.04f)
+                paint.color=faceColor
+                canvas.drawPath(bolt,paint)
+                paint.style=Paint.Style.FILL
+                paint.color=Color.DKGRAY
                 canvas.drawPath(bolt,paint)
             }
             x += size*1.18f + if (clockEnabled()) 4*d else 0f
