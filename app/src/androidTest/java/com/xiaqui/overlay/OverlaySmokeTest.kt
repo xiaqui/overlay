@@ -23,7 +23,8 @@ class OverlaySmokeTest {
             if(predicate())return
             android.os.SystemClock.sleep(100)
         }
-        assertTrue("Timed out waiting for service state; diagnostic=${Settings(context).prefs.getString(\"diagnostic\",\"\")}; runtime=${OverlayService.runtime}",predicate())
+        val diagnostic=Settings(context).prefs.getString("diagnostic","")
+        assertTrue("Timed out waiting for service state; diagnostic=$diagnostic; runtime=${OverlayService.runtime}",predicate())
     }
     @Test fun overlayLifecycleAndFullscreenWhiteBlack() {
         val settings=Settings(context)
