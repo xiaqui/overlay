@@ -51,25 +51,35 @@ class StatusView(
             val cap = maxOf(1.2f*d,size*0.08f)
             val reversed=settings.batteryReversed()
             val bodyX=if(reversed)x+cap else x
-            // Horizontal geometry can be mirrored without tying the choice to an OS version.
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = maxOf(0.8f*d,size*0.045f)
+            // Keep the original battery frame, terminal and capacity geometry intact.
+            // A single solid, slightly displaced silhouette is the shadow behind ALL of
+            // those shapes, including the terminal. Do not paint a second inset rectangle:
+            // its mismatched edges made the tiny terminal appear like a dark square.
+            val faceColor=paint.color
+            val terminalLeft=if(reversed)bodyX-cap else bodyX+bw
+            val terminalRight=if(reversed)bodyX else bodyX+bw+cap
+            paint.clearShadowLayer()
+            paint.style=Paint.Style.FILL
+            paint.color=BATTERY_SILHOUETTE_SHADOW_COLOR
+            canvas.save()
+            canvas.translate(SHADOW_DX_DP*d,SHADOW_DY_DP*d)
             canvas.drawRect(bodyX,by,bodyX+bw,by+bh,paint)
-            paint.style = Paint.Style.FILL
-            if(reversed)canvas.drawRect(bodyX-cap,by+bh*0.31f,bodyX,by+bh*0.69f,paint)
-            else canvas.drawRect(bodyX+bw,by+bh*0.31f,bodyX+bw+cap,by+bh*0.69f,paint)
+            canvas.drawRect(terminalLeft,by+bh*0.31f,terminalRight,by+bh*0.69f,paint)
+            canvas.restore()
+
+            // Foreground: the same thin white outline, tiny terminal and filled capacity
+            // as before. The dark shadow visible through empty capacity supplies contrast.
+            paint.color=faceColor
+            paint.style=Paint.Style.STROKE
+            paint.strokeWidth=maxOf(0.8f*d,size*0.045f)
+            canvas.drawRect(bodyX,by,bodyX+bw,by+bh,paint)
+            paint.style=Paint.Style.FILL
+            canvas.drawRect(terminalLeft,by+bh*0.31f,terminalRight,by+bh*0.69f,paint)
             if (percent >= 0) {
                 val inset=maxOf(1.2f*d,size*0.07f)
                 val innerLeft=bodyX+inset
                 val innerRight=bodyX+bw-inset
                 val filled=(innerRight-innerLeft)*percent.coerceIn(0,100)/100f
-                // Contrast is needed inside the empty portion, not just around the outline.
-                // Draw a translucent neutral backing before the filled part; no new View or timer.
-                val faceColor=paint.color
-                paint.clearShadowLayer()
-                paint.color=EMPTY_BATTERY_COLOR
-                canvas.drawRect(innerLeft,by+inset,innerRight,by+bh-inset,paint)
-                paint.color=faceColor
-                applyStatusShadow()
                 if(reversed)canvas.drawRect(innerRight-filled,by+inset,innerRight,by+bh-inset,paint)
                 else canvas.drawRect(innerLeft,by+inset,innerLeft+filled,by+bh-inset,paint)
             }
@@ -84,6 +94,16 @@ class StatusView(
                     }
                     close()
                 }
+                // The dark bolt alone vanishes against the dark empty-capacity
+                // silhouette. Give it a narrow light keyline, then retain its
+                // original dark fill so it also remains visible over white charge.
+                paint.style=Paint.Style.STROKE
+                paint.strokeJoin=Paint.Join.ROUND
+                paint.strokeWidth=maxOf(0.65f*d,size*0.04f)
+                paint.color=faceColor
+                canvas.drawPath(bolt,paint)
+                paint.style=Paint.Style.FILL
+                paint.color=Color.DKGRAY
                 canvas.drawPath(bolt,paint)
             }
             x += size*1.18f + if (clockEnabled()) 4*d else 0f
@@ -102,7 +122,7 @@ class StatusView(
         internal const val SHADOW_DX_DP=0.55f
         internal const val SHADOW_DY_DP=0.65f
         internal const val SHADOW_COLOR=0xB8000000.toInt()
-        internal const val EMPTY_BATTERY_COLOR=0x66000000
+        internal const val BATTERY_SILHOUETTE_SHADOW_COLOR=0xB8000000.toInt()
         private val BOLT_POINTS=floatArrayOf(
             0.58f,0.08f, 0.30f,0.56f, 0.49f,0.56f,
             0.40f,0.94f, 0.72f,0.43f, 0.53f,0.43f
