@@ -221,6 +221,43 @@ class NavbarTest {
         }
     }
 
+    @Test fun batterySilhouetteShadowPreservesSmallTerminalOnWhite() {
+        settings.set("size",14)
+        settings.set("clock",false)
+        settings.set("battery",true)
+        settings.set("color",0)
+        // Scale the raster to make the original tiny terminal testable without
+        // changing its runtime dp geometry or adding a second backing rectangle.
+        val cfg=Configuration(ctx.resources.configuration).apply { fontScale=2f }
+        val scaled=ctx.createConfigurationContext(cfg)
+        val d=scaled.resources.displayMetrics.density
+        val effectiveSize=14*scaled.resources.displayMetrics.scaledDensity
+        val bw=effectiveSize*0.94f
+        val cap=maxOf(1.2f*d,effectiveSize*0.08f)
+        for(reversed in listOf(false,true))for(percent in listOf(-1,20,50,80)) {
+            settings.set("battery_reversed",reversed)
+            val view=StatusView(scaled,settings,Policy.STATUS_BATTERY).apply { this.percent=percent }
+            view.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+            view.layout(0,0,view.measuredWidth,view.measuredHeight)
+            val frame=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
+            try {
+                frame.eraseColor(Color.WHITE)
+                view.draw(Canvas(frame))
+                val bodyX=3*d+(if(reversed)cap else 0f)
+                val terminalX=if(reversed)bodyX-cap/2f else bodyX+bw+cap/2f
+                val ty=view.height/2
+                val terminal=Color.red(frame.getPixel(terminalX.toInt(),ty))
+                assertTrue("terminal remains bright and shaped by foreground reverse=$reversed percent=$percent: $terminal",terminal>190)
+                // Even with unknown charge percentage the shadow must cover the
+                // body silhouette rather than an inset percentage-specific bar.
+                if(percent<0) {
+                    val center=Color.red(frame.getPixel((bodyX+bw/2f).toInt(),ty))
+                    assertTrue("solid silhouette covers empty body with unknown percent: $center",center<170)
+                }
+            } finally { frame.recycle() }
+        }
+    }
+
     @Test fun batteryDirectionMirrorsTerminalFillAndChargingAppearance() {
         assertFalse("existing installs default to the legacy right-terminal direction",settings.batteryReversed())
         settings.set("size",14);settings.set("clock",false);settings.set("battery",true);settings.set("color",0)
