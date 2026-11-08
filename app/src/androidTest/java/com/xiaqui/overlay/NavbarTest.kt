@@ -258,6 +258,44 @@ class NavbarTest {
         }
     }
 
+    @Test fun chargingBoltContrastsWithEmptySilhouetteOnWhite() {
+        settings.set("size",28)
+        settings.set("clock",false)
+        settings.set("battery",true)
+        settings.set("color",0)
+        for(reversed in listOf(false,true)) {
+            settings.set("battery_reversed",reversed)
+            fun frame(charging: Boolean): Bitmap {
+                val view=StatusView(ctx,settings,Policy.STATUS_BATTERY).apply {
+                    percent=0
+                    this.charging=charging
+                }
+                view.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+                view.layout(0,0,view.measuredWidth,view.measuredHeight)
+                return Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888).also {
+                    it.eraseColor(Color.WHITE)
+                    view.draw(Canvas(it))
+                }
+            }
+            val off=frame(false)
+            val on=frame(true)
+            try {
+                var differing=0
+                var lightKeyline=0
+                for(y in 0 until on.height)for(x in 0 until on.width) {
+                    val a=Color.red(off.getPixel(x,y))
+                    val b=Color.red(on.getPixel(x,y))
+                    if(kotlin.math.abs(a-b)>30) {
+                        differing++
+                        if(b>a+40)lightKeyline++
+                    }
+                }
+                assertTrue("bolt alters empty battery pixels reversed=$reversed: $differing",differing>5)
+                assertTrue("light bolt keyline contrasts with dark empty shadow reversed=$reversed: $lightKeyline",lightKeyline>2)
+            } finally { off.recycle();on.recycle() }
+        }
+    }
+
     @Test fun batteryDirectionMirrorsTerminalFillAndChargingAppearance() {
         assertFalse("existing installs default to the legacy right-terminal direction",settings.batteryReversed())
         settings.set("size",14);settings.set("clock",false);settings.set("battery",true);settings.set("color",0)
