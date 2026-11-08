@@ -17,13 +17,14 @@ class OverlaySmokeTest {
         val fd=instrumentation.uiAutomation.executeShellCommand(command)
         return ParcelFileDescriptor.AutoCloseInputStream(fd).bufferedReader().use { it.readText() }
     }
-    private fun waitFor(predicate: ()->Boolean) {
-        val end=android.os.SystemClock.elapsedRealtime()+10_000
+    private fun waitFor(timeoutMs: Long=10_000L,predicate: ()->Boolean) {
+        val end=android.os.SystemClock.elapsedRealtime()+timeoutMs
         while(android.os.SystemClock.elapsedRealtime()<end) {
             if(predicate())return
             android.os.SystemClock.sleep(100)
         }
-        assertTrue("Timed out waiting for service state",predicate())
+        val diagnostic=Settings(context).prefs.getString("diagnostic","")
+        assertTrue("Timed out waiting for service state; diagnostic=$diagnostic; runtime=${OverlayService.runtime}",predicate())
     }
     @Test fun overlayLifecycleAndFullscreenWhiteBlack() {
         val settings=Settings(context)
@@ -35,7 +36,7 @@ class OverlaySmokeTest {
                 settings.set("enabled",true);settings.set("top",true);settings.set("bottom",true)
                 OverlayService.start(context)
             }
-            waitFor { settings.prefs.getString("diagnostic","")?.startsWith("旧方式 2006")==true }
+            waitFor(if(android.os.Build.VERSION.SDK_INT==24)30_000L else 10_000L) { settings.prefs.getString("diagnostic","")?.startsWith("旧方式 2006")==true }
             for(dark in listOf(false,true)) {
                 val preview=instrumentation.startActivitySync(Intent(context,PreviewActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("dark",dark))

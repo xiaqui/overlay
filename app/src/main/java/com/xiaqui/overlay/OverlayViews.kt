@@ -62,6 +62,14 @@ class StatusView(
                 val innerLeft=bodyX+inset
                 val innerRight=bodyX+bw-inset
                 val filled=(innerRight-innerLeft)*percent.coerceIn(0,100)/100f
+                // Contrast is needed inside the empty portion, not just around the outline.
+                // Draw a translucent neutral backing before the filled part; no new View or timer.
+                val faceColor=paint.color
+                paint.clearShadowLayer()
+                paint.color=EMPTY_BATTERY_COLOR
+                canvas.drawRect(innerLeft,by+inset,innerRight,by+bh-inset,paint)
+                paint.color=faceColor
+                applyStatusShadow()
                 if(reversed)canvas.drawRect(innerRight-filled,by+inset,innerRight,by+bh-inset,paint)
                 else canvas.drawRect(innerLeft,by+inset,innerLeft+filled,by+bh-inset,paint)
             }
@@ -94,6 +102,7 @@ class StatusView(
         internal const val SHADOW_DX_DP=0.55f
         internal const val SHADOW_DY_DP=0.65f
         internal const val SHADOW_COLOR=0xB8000000.toInt()
+        internal const val EMPTY_BATTERY_COLOR=0x66000000
         private val BOLT_POINTS=floatArrayOf(
             0.58f,0.08f, 0.30f,0.56f, 0.49f,0.56f,
             0.40f,0.94f, 0.72f,0.43f, 0.53f,0.43f

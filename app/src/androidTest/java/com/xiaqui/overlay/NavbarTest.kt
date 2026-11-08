@@ -189,6 +189,38 @@ class NavbarTest {
         combinedImage.recycle()
         assertTrue("clock restores its shadow after the charging bolt clears paint shadow",clockContrast>10)
     }
+    @Test fun batteryCapacityHasVisibleBoundaryOnWhite() {
+        settings.set("size",14)
+        settings.set("clock",false)
+        settings.set("battery",true)
+        settings.set("color",0)
+        val d=ctx.resources.displayMetrics.density
+        val bw=14*ctx.resources.displayMetrics.scaledDensity*0.94f
+        val inset=maxOf(1.2f*d,14*ctx.resources.displayMetrics.scaledDensity*0.07f)
+        val cap=maxOf(1.2f*d,14*ctx.resources.displayMetrics.scaledDensity*0.08f)
+        for(reversed in listOf(false,true))for(percent in listOf(20,50,80)) {
+            settings.set("battery_reversed",reversed)
+            val view=StatusView(ctx,settings,Policy.STATUS_BATTERY).apply { this.percent=percent }
+            view.measure(View.MeasureSpec.UNSPECIFIED,View.MeasureSpec.UNSPECIFIED)
+            view.layout(0,0,view.measuredWidth,view.measuredHeight)
+            val image=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
+            try {
+                image.eraseColor(Color.WHITE)
+                view.draw(Canvas(image))
+                val left=3*d+(if(reversed)cap else 0f)+inset
+                val right=3*d+(if(reversed)cap else 0f)+bw-inset
+                val y=view.height/2
+                fun lightAt(fraction: Float)=Color.red(image.getPixel((left+(right-left)*fraction).toInt(),y))
+                val filledSample=if(reversed)lightAt(0.9f) else lightAt(0.1f)
+                val emptySample=if(reversed)lightAt(0.1f) else lightAt(0.9f)
+                assertTrue("filled portion stays bright percent=$percent reverse=$reversed: $filledSample",filledSample>220)
+                assertTrue("empty portion contrasts on white percent=$percent reverse=$reversed: $emptySample",emptySample<205)
+                assertTrue("capacity boundary is visible percent=$percent reverse=$reversed",
+                    filledSample-emptySample>30)
+            } finally { image.recycle() }
+        }
+    }
+
     @Test fun batteryDirectionMirrorsTerminalFillAndChargingAppearance() {
         assertFalse("existing installs default to the legacy right-terminal direction",settings.batteryReversed())
         settings.set("size",14);settings.set("clock",false);settings.set("battery",true);settings.set("color",0)
@@ -318,9 +350,21 @@ class NavbarTest {
         main {
             settings.set("top",true);settings.set("bottom",true)
             settings.set("x",-10);settings.set("y",-6)
-            settings.set("clock_left",true);settings.set("clock",true);settings.set("battery",true)
+            settings.set("clock_left",false);settings.set("clock",true);settings.set("battery",true)
             settings.set("enabled",true);OverlayService.start(ctx)
         }
+        waitFor("right layout starts with a single status window") {
+            OverlayService.runtime?.let { it.visible && it.statusLocations.size==1 }==true
+        }
+        // Observational CI telemetry only. Emulator PSS/CPU are not device battery estimates.
+        fun recordCost(mode: String) {
+            val startCpu=android.os.Process.getElapsedCpuTime()
+            val start=android.os.SystemClock.elapsedRealtime()
+            android.os.SystemClock.sleep(1200)
+            android.util.Log.i("OverlayPerf","api=${android.os.Build.VERSION.SDK_INT},layout=$mode,pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-startCpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-start},windows=${OverlayService.runtime?.windowCount},statusWindows=${OverlayService.runtime?.statusLocations?.size}")
+        }
+        recordCost("right")
+        main { settings.set("clock_left",true) }
         waitFor("left clock and right battery attach as two status windows") {
             OverlayService.runtime?.let {
                 it.visible && it.statusLocations.size==2 && it.windowCount==6 &&
@@ -328,6 +372,7 @@ class NavbarTest {
                     it.statusLocations.maxOf { p->p.x }>ctx.resources.displayMetrics.widthPixels/2
             }==true
         }
+        recordCost("left")
         var screen=inst.uiAutomation.takeScreenshot()!!
         assertTrue("negative left offset is preserved",OverlayService.runtime!!.statusLocations.minOf { it.x }<0)
         assertTrue("battery remains at the right edge",OverlayService.runtime!!.statusLocations.maxOf { it.x }>screen.width/2)
