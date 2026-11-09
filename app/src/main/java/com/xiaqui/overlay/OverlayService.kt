@@ -19,6 +19,7 @@ class OverlayService : Service() {
     private val windows=mutableListOf<View>()
     private val statusViews=mutableListOf<StatusView>()
     private var lastStatusElements=-1
+    private var batteryPositionUpdater: (() -> Unit)?=null
     private var observation: BarObservation?=null
     private var bars=BarState()
     private var lastCornerLayout: List<CornerOffset>?=null
@@ -55,6 +56,7 @@ class OverlayService : Service() {
             if (!screenOn) return
             if (!SystemSettings.canDrawOverlays(this@OverlayService)) { fail("重ねて表示の権限が取り消されました");return }
             statusViews.forEach { it.requestLayout();it.invalidate() }
+            batteryPositionUpdater?.invoke()
             handler.postDelayed(this,Policy.nextMinute(System.currentTimeMillis()))
         }
     }
@@ -127,7 +129,7 @@ class OverlayService : Service() {
         statusbarLayer?.clear();statusbarLayer=null;recentsDetector=null;recentsTintSuppressed=false
         observation=null;bars=BarState();lastCornerLayout=null
         windows.toList().forEach { runCatching { wm.removeViewImmediate(it) } }
-        windows.clear();cornerWindows.clear();statusViews.clear();lastStatusElements=-1;lastMask=-1;runtime=null
+        windows.clear();cornerWindows.clear();statusViews.clear();batteryPositionUpdater=null;lastStatusElements=-1;lastMask=-1;runtime=null
     }
     private fun params(width: Int,height: Int,gravityValue: Int,typeValue: Int=activeType)=WindowManager.LayoutParams(
         width,height,typeValue,
@@ -159,27 +161,52 @@ class OverlayService : Service() {
             (if(settings.bool("battery",true))Policy.STATUS_BATTERY else 0)
     private fun syncStatusWindows(elements: Int) {
         if(elements==lastStatusElements)return
+        batteryPositionUpdater=null
         statusViews.toList().forEach { view->
             statusViews.remove(view)
             if(windows.remove(view))wm.removeViewImmediate(view)
         }
         if(elements==0 || !screenOn) { lastStatusElements=elements;return }
         val density=resources.displayMetrics.density
-        fun attachStatus(mask: Int,gravity: Int) {
+        fun attachStatus(mask: Int,gravity: Int,batteryOnly: Boolean=false) {
             val view=StatusView(this,settings,mask).apply {
                 percent=battery;charging=this@OverlayService.charging
             }
             val p=params(-2,-2,Gravity.TOP or gravity).apply {
                 x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
             }
+            if(batteryOnly) {
+                fun batteryX(): Int {
+                    var anchor=0f
+                    if(!settings.clockOnLeft() && elements and Policy.STATUS_CLOCK!=0) {
+                        // Re-evaluate on the existing minute/time callbacks, including 9:59→10:00.
+                        val metrics=resources.displayMetrics
+                        anchor=StatusView.batteryAnchor(
+                            android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date()),
+                            settings.number("battery_anchor_size",14)*metrics.scaledDensity,density)
+                    }
+                    return ((settings.number("battery_base_x",4)+settings.offset("battery_x",0))*density+anchor).toInt()
+                }
+                p.x=batteryX()
+                p.y=((settings.number("battery_base_y",0)+settings.offset("battery_y",0))*density).toInt()
+                batteryPositionUpdater={
+                    val target=batteryX()
+                    if(windows.contains(view) && target!=p.x) {
+                        p.x=target
+                        try { wm.updateViewLayout(view,p) }
+                        catch (_: SecurityException) { fail("表示権限を確認してください") }
+                        catch (_: WindowManager.BadTokenException) { fail("表示ウィンドウが拒否されました") }
+                    }
+                }
+            }
             add(view,p);statusViews.add(view)
             view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
                 if(statusViews.contains(view))publishRuntime()
             }
         }
-        if(settings.clockOnLeft()) {
-            if(elements and Policy.STATUS_CLOCK!=0)attachStatus(Policy.STATUS_CLOCK,Gravity.LEFT)
-            if(elements and Policy.STATUS_BATTERY!=0)attachStatus(Policy.STATUS_BATTERY,Gravity.RIGHT)
+        if(settings.clockOnLeft() || settings.independentBattery()) {
+            if(elements and Policy.STATUS_CLOCK!=0)attachStatus(Policy.STATUS_CLOCK,if(settings.clockOnLeft())Gravity.LEFT else Gravity.RIGHT)
+            if(elements and Policy.STATUS_BATTERY!=0)attachStatus(Policy.STATUS_BATTERY,Gravity.RIGHT,true)
         } else {
             attachStatus(elements,Gravity.RIGHT)
         }
@@ -451,5 +478,6 @@ class BootReceiver: BroadcastReceiver() {
         }
     }
 }
+
 
 
