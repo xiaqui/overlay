@@ -37,6 +37,7 @@ class StatusView(
         d,settings.batteryAspect(),settings.batteryDirection())
     internal fun batterySlotWidth(): Float {
         val g=geometry()
+        if(settings.batteryDirection()==2)return g.width+g.stroke
         return maxOf(g.width+g.stroke,settings.batterySize()*resources.displayMetrics.scaledDensity*1.18f)
     }
     override fun onMeasure(w: Int, h: Int) {
@@ -118,6 +119,12 @@ class StatusView(
         }
     }
     companion object {
+        internal fun batteryAnchor(text: String,size: Float,density: Float): Float {
+            val paint=Paint().apply {
+                textSize=size;typeface=Typeface.create("sans-serif",Typeface.NORMAL)
+            }
+            return paint.measureText(text)+4*density
+        }
         internal const val ELEMENT_CLOCK=Policy.STATUS_CLOCK
         internal const val ELEMENT_BATTERY=Policy.STATUS_BATTERY
         internal const val SHADOW_RADIUS_DP=0.55f

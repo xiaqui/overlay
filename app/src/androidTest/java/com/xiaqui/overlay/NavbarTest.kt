@@ -439,6 +439,22 @@ class NavbarTest {
             android.util.Log.i("OverlayPerf","api=${android.os.Build.VERSION.SDK_INT},layout=$mode,pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-startCpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-start},windows=${OverlayService.runtime?.windowCount},statusWindows=${OverlayService.runtime?.statusLocations?.size}")
         }
         recordCost("right")
+        val originalClock=OverlayService.runtime!!.statusLocations[0]
+        main {
+            settings.setBatteryDirection(2);settings.set("battery_size",40)
+            settings.set("battery_aspect",160);settings.set("battery_x",-64);settings.set("battery_y",100)
+        }
+        waitFor("battery extremes cannot move the right clock window") {
+            OverlayService.runtime?.let {
+                it.statusLocations.size==2 && it.statusLocations[0]==originalClock &&
+                    it.statusLocations[1].y>originalClock.y+50
+            }==true
+        }
+        recordCost("independent-battery")
+        main { settings.resetBatteryAdjustments();settings.setBatteryDirection(0) }
+        waitFor("battery reset preserves right clock location") {
+            OverlayService.runtime?.let { it.statusLocations.size==2 && it.statusLocations[0]==originalClock }==true
+        }
         main { settings.set("clock_left",true) }
         waitFor("left clock and right battery attach as two status windows") {
             OverlayService.runtime?.let {

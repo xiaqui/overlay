@@ -29,6 +29,8 @@ class BatteryFinishTest {
             prefs.edit().clear().putInt("size",22).putInt("x",-10).putInt("y",-6)
                 .putBoolean("battery_reversed",true).commit()
             val s=Settings(ctx)
+            assertTrue("12-hour width transition updates the shared placement calculation",
+                StatusView.batteryAnchor("10:00",28f,2f)>StatusView.batteryAnchor("9:59",28f,2f))
             assertEquals(1,s.batteryDirection());assertEquals(22,s.batterySize())
             assertEquals(-10,s.number("battery_base_x",0));assertEquals(-6,s.number("battery_base_y",0))
             assertFalse(s.independentBattery())
@@ -84,6 +86,30 @@ class BatteryFinishTest {
                     if(plain.getPixel(x,y)!=charged.getPixel(x,y))changed++
                 assertTrue("unknown-capacity charging bolt visible",changed>2)
                 plain.recycle();charged.recycle()
+            }
+        } finally { prefs.edit().clear().commit() }
+    }
+    @Test fun exteriorShadowHasSoftIntermediatePixels() {
+        val prefs=ctx.getSharedPreferences("overlay",0)
+        try {
+            prefs.edit().clear().commit();val s=Settings(ctx)
+            s.set("battery_size",14)
+            for(direction in 0..2) {
+                val image=raster(s,direction,0,false,Color.WHITE)
+                val d=ctx.resources.displayMetrics.density
+                val g=BatteryGeometry(14*d,d,100,direction)
+                val top=(image.height-g.height)/2f
+                // Exterior under a long body edge, away from foreground stroke/cap/empty fill.
+                var intermediate=0
+                for(x in 0 until image.width)for(y in 0 until image.height) {
+                    val outside=if(direction==2)
+                        x>3*d+g.width+g.stroke/2+0.1f*d && y>top+g.cap+3*d && y<top+g.height-3*d
+                    else y>top+g.height+g.stroke/2+0.1f*d && x>3*d+3*d && x<3*d+g.longSide-3*d
+                    val value=Color.red(image.getPixel(x,y))
+                    if(outside && value in 100..253)intermediate++
+                }
+                assertTrue("soft exterior shadow survives clipping direction=$direction",intermediate>0)
+                image.recycle()
             }
         } finally { prefs.edit().clear().commit() }
     }
