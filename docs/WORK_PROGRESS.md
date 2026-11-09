@@ -4,10 +4,18 @@
 
 - 実装: 旧battery_reversedを横右/横左へ互換解釈し縦上を追加。電池専用サイズ/比率/X/Y・初期値復帰。旧共有size/x/yは初回snapshot。時計の描画・位置を保護。外側ぼかし影と内側容量コントラストを分離。
 - 最小窓: 従来条件の結合窓を保持し、独立調整時だけ最大2窓。時計・電池OFF時は既存どおり不要窓を削除。新Service/poll/権限/ライブラリなし。
-- 自動試験: 幾何単体、設定移行/復帰、時計ピクセル不変、方向/サイズ/比率/fontScale/白黒/全残量/不明/充電の描画と窓座標回帰を追加。CI・最終head・レビュー・配送実績は確認後に追記する。API24は電池試験限定、API23の画面OFF/ONは既存の実機保留を継承。
+- 自動試験: 幾何単体、設定移行/復帰、時計ピクセル不変、方向/サイズ/比率/fontScale/白黒/全残量/不明/充電の描画と窓座標回帰を追加。最終head `2343c9cab27c441785ab6410a7bcc5f948f448f4` の [CI 42648784393](https://github.com/xiaqui/overlay/actions/runs/42648784393) はsuccess。JVM・Lint・debug/androidTest build、API23/26/28/29各15件＋API24電池限定3件（計63件）成功。API24全体回帰とAPI23の画面OFF/ONは実機保留を継承。
 - ローカル: diffチェック、shell構文、workflow YAML解析。SDK/Gradle環境は構築せず、実ビルドとAndroid試験はActionsを使用。
-- 配送: 最終PRマージ前の署名APKは生成/配送しない。既存正式Overlay専用Driveファイルを現物確認済み。ID/私有URLはrepoへ掲載せず、最終報告で配送先を示す。
+- レビュー: GitHub独立レビューP2（12時間時計の桁増加時に電池anchor未更新）を修正しthread解決。既存minute/time-change経路で再計算し追加pollなし。別担当が最終headを再確認、未解決P0/P1/P2なし（静的）。
+- マージ: [実装PR #26](https://github.com/xiaqui/overlay/pull/26)、merge/source SHA `f8ee341f80a4c20ee73378b05cdec2f94c155f19`。merge直前にhead・base・CI・thread・mergeable=cleanを照合。仕様整理PR #25は実装用branchとして流用せず、関連仕様を専用文書へ反映。
+- 配送: マージmainで唯一の署名 [Actions 42650378439](https://github.com/xiaqui/overlay/actions/runs/42650378439) がsuccess。Artifact `13688534793`（Overlay-signed）1件、ZIP 674409 bytes / SHA256 `2b4e7d19409140fe5c121d83f601bb17bf274fb3dae05646cd53358439cae768`。中間APKの生成/配送なし。既存正式Overlay専用DriveファイルのID・親・共有状態を維持してAPK本体を上書き（2026-11-10 01:03 JST）。ID/私有URLはrepoへ掲載せず、最終報告で配送先を示す。
+- APK: `Overlay.apk`、680106 bytes、SHA256 `8bdf4b4b60309f7e8778c0da3eb754af586aafafc8f0fccc55ee7a7d69eabe15`。com.xiaqui.overlay / versionCode 7 / 0.7.0-battery-finish / min23 / target25 / 非debuggable / INTERNET権限なし。旧配布675835 bytesから+4271 bytes（約0.63%）。
+- 署名: Actionsのapksignerでv1/v2が有効、既知SHAの0.2.0 APKと署名鍵証明書一致。証明書SHA256 `dcfd2c8122274ec4148473c96b1853989c8d22e58e445d6ec4889ad5b34dffb2`。配送前のDrive旧APKとも同じ指紋をローカル照合。秘密値は取得/記録していない。
+- 再取得: 同じDrive IDのAPKを再取得し、680106 bytes、上記SHA、Artifact APKとcmp一致。OpenSSLで再取得APKのv1 CMS署名を検証し、署名済みManifestと14エントリのSHA256を照合。v2はCI apksigner検証済みAPKとのbyte一致で同一性を保証。package/versionはCIのaapt検査済み同一バイナリ、内部version-control-infoおよびPROVENANCEのsource SHAもmerge SHAに一致。
+- 常駐負荷: 新Service/poll/大画面Bitmapなし。API23の調整前/極値調整後PSSは24583/24987KiB、API26は31729/31581、API28は40909/41177、API29は44348/45019（いずれも当該テスト条件でstatus2窓、観測窓1.2秒）。CPUはノイズが大きいため回帰率を断定しない。比較前は負数位置で既に独立2窓であり既定1窓との比較ではない。実機の消費電力や長時間リークの保証ではない。
 - 実機検収: [BATTERY_FINISH_JA.md](BATTERY_FINISH_JA.md)。実機の外観・長時間メモリ/電池消費・更新インストールは未検収。
+
+本追記は配送後の文書整理であり、APK sourceは上記merge SHAのまま。文書更新を理由にAPKを再生成しない。
 
 ---
 
@@ -30,7 +38,7 @@
 | 1. 時計・電池の影 | #18 / `045d783a8ecd63039cd0a60438fbf0f39b7af4d1` | run 42173448002 success。P2の実画素不足を修正、最終P0/P1/P2なし | `b21d695b685905ee119bcb760f32c8f606615f63` |
 | 2. 時計の左右配置 | #19 / `7881318959f11aeb5852de42f01a9cb9bef55ecd` | run 42175179091 success。P2のlayout前座標を修正、最終P0/P1/P2なし | `c7f0223f35d41d93fe3f80d85312046a9c5caeea` |
 | 3. 電池方向 | #20 / `f2b214e507189243f161ee2578be08a52f3be795` | run 42198103784 success。P2の充電bolt検証を修正、最終P0/P1/P2なし | `4c17cd4f1b932daff8512d3191d24ccd1b51262e` |
-| 4. 全画面例外の部分表示 | #21 / 本PRの最終head | JVM/API別自動試験・独立レビューをPRで照合 | マージ後に記録確定 |
+| 4. 全画面例外の部分表示 | #21 / `157cd33c85ade32feac73ef7b205f33f5e737d56` | 旧4工程の完了済み履歴。JVM/API別試験・独立レビューは#21で照合 | `da6f44a7b93e990d44d82591d83a7c5f91b568a1` |
 
 工程1は影を0.55dp blur、右0.55dp、下0.65dp、黒alpha B8へ変更。工程2は既定右を維持し、左選択時だけ時計左・電池右へ分離。工程3はOS決め打ちを避け、通常／反転を手動選択し、端子・残量・充電boltを一貫して鏡像化。工程4は旧display値0/1/2を維持し、3=時計のみ、4=電池のみを追加する。全体OFFと常時表示の意味を優先し、不要なStatus窓はWindowManagerから除去する。
 
