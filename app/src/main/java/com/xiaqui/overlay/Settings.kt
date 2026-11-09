@@ -5,6 +5,15 @@ import android.content.Context
 class Settings(context: Context) {
     val prefs=context.getSharedPreferences("overlay",Context.MODE_PRIVATE)
     init {
+        if(!prefs.contains("batterySchema")) {
+            // Snapshot the old shared values once. Keep the original keys for downgrade.
+            val edit=prefs.edit()
+            if(!prefs.contains("battery_size"))edit.putInt("battery_size",number("size",14).coerceIn(10,28))
+            if(!prefs.contains("battery_base_x"))edit.putInt("battery_base_x",offset("x",4))
+            if(!prefs.contains("battery_base_y"))edit.putInt("battery_base_y",offset("y",0))
+            if(!prefs.contains("battery_anchor_size"))edit.putInt("battery_anchor_size",number("size",14).coerceIn(10,28))
+            edit.putInt("batterySchema",1).commit()
+        }
         if(prefs.getInt("cornerSchema",0)<2) {
             val editor=prefs.edit()
             for((key,value) in prefs.all)if(key.startsWith("app:") && value is Int) {
@@ -19,7 +28,21 @@ class Settings(context: Context) {
     fun number(key: String,default: Int)=prefs.getInt(key,default)
     fun offset(key: String,default: Int)=number(key,default).coerceIn(MIN_OFFSET_DP,MAX_OFFSET_DP)
     fun clockOnLeft()=bool("clock_left")
-    fun batteryReversed()=bool("battery_reversed")
+    fun batteryDirection()=number("battery_direction",if(bool("battery_reversed"))1 else 0).coerceIn(0,2)
+    fun batteryReversed()=batteryDirection()==1
+    fun setBatteryDirection(value: Int) {
+        val direction=value.coerceIn(0,2)
+        prefs.edit().putInt("battery_direction",direction).putBoolean("battery_reversed",direction==1).apply()
+    }
+    fun batterySize()=number("battery_size",14).coerceIn(10,40)
+    fun batteryAspect()=number("battery_aspect",100).coerceIn(60,160)
+    fun independentBattery()=batteryDirection()==2 || batteryAspect()!=100 ||
+        batterySize()!=number("size",14) || offset("battery_x",0)!=0 || offset("battery_y",0)!=0 ||
+        number("battery_base_x",4)!=offset("x",4) || number("battery_base_y",0)!=offset("y",0)
+    fun resetBatteryAdjustments() {
+        prefs.edit().putInt("battery_size",number("battery_anchor_size",14).coerceIn(10,28))
+            .putInt("battery_aspect",100).putInt("battery_x",0).putInt("battery_y",0).apply()
+    }
     fun set(key: String,value: Boolean) { prefs.edit().putBoolean(key,value).apply() }
     fun set(key: String,value: Int) { prefs.edit().putInt(key,value).apply() }
     fun rule(pkg: String)=Policy.mode(number("corner2:$pkg",Policy.NORMAL))
@@ -60,5 +83,6 @@ class Settings(context: Context) {
         const val NAVBAR_NONE=2
     }
 }
+
 
 

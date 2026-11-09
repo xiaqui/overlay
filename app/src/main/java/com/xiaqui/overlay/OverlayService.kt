@@ -165,21 +165,35 @@ class OverlayService : Service() {
         }
         if(elements==0 || !screenOn) { lastStatusElements=elements;return }
         val density=resources.displayMetrics.density
-        fun attachStatus(mask: Int,gravity: Int) {
+        fun attachStatus(mask: Int,gravity: Int,batteryOnly: Boolean=false) {
             val view=StatusView(this,settings,mask).apply {
                 percent=battery;charging=this@OverlayService.charging
             }
             val p=params(-2,-2,Gravity.TOP or gravity).apply {
                 x=(settings.offset("x",4)*density).toInt();y=(settings.offset("y",0)*density).toInt()
             }
+            if(batteryOnly) {
+                var anchor=0f
+                if(!settings.clockOnLeft() && elements and Policy.STATUS_CLOCK!=0) {
+                    // Legacy right-group battery anchor is independent of its new dimensions.
+                    val metrics=resources.displayMetrics
+                    val paint=android.graphics.Paint().apply {
+                        textSize=settings.number("battery_anchor_size",14)*metrics.scaledDensity
+                        typeface=android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.NORMAL)
+                    }
+                    anchor=paint.measureText(android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date()))+4*density
+                }
+                p.x=((settings.number("battery_base_x",4)+settings.offset("battery_x",0))*density+anchor).toInt()
+                p.y=((settings.number("battery_base_y",0)+settings.offset("battery_y",0))*density).toInt()
+            }
             add(view,p);statusViews.add(view)
             view.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_->
                 if(statusViews.contains(view))publishRuntime()
             }
         }
-        if(settings.clockOnLeft()) {
-            if(elements and Policy.STATUS_CLOCK!=0)attachStatus(Policy.STATUS_CLOCK,Gravity.LEFT)
-            if(elements and Policy.STATUS_BATTERY!=0)attachStatus(Policy.STATUS_BATTERY,Gravity.RIGHT)
+        if(settings.clockOnLeft() || settings.independentBattery()) {
+            if(elements and Policy.STATUS_CLOCK!=0)attachStatus(Policy.STATUS_CLOCK,if(settings.clockOnLeft())Gravity.LEFT else Gravity.RIGHT)
+            if(elements and Policy.STATUS_BATTERY!=0)attachStatus(Policy.STATUS_BATTERY,Gravity.RIGHT,true)
         } else {
             attachStatus(elements,Gravity.RIGHT)
         }
@@ -451,5 +465,6 @@ class BootReceiver: BroadcastReceiver() {
         }
     }
 }
+
 
 

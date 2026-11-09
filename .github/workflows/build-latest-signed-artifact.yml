@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   build:
-    # One-shot automatic delivery build after the reviewed battery-silhouette PR #23 merge.
+    # One-shot automatic delivery build after the reviewed battery-finish implementation merge.
     # Future main updates can only run this workflow through workflow_dispatch.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == 'f53793782ce3a6bd048c2b72b2a56493e0ed36ae' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == '2d17bb6d0890eca0ae559a7af5b7d55c89473b48' }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -63,8 +63,8 @@ jobs:
           grep -qi "certificate SHA-256 digest: $EXPECTED" delivery/SIGNATURE.txt
           "$TOOLS/aapt" dump badging delivery/Overlay.apk > delivery/PACKAGE.txt
           grep -q "package: name='com.xiaqui.overlay'" delivery/PACKAGE.txt
-          grep -q "versionCode='6'" delivery/PACKAGE.txt
-          grep -q "versionName='0.6.0-display-controls'" delivery/PACKAGE.txt
+          grep -q "versionCode='7'" delivery/PACKAGE.txt
+          grep -q "versionName='0.7.0-battery-finish'" delivery/PACKAGE.txt
           grep -q "sdkVersion:'23'" delivery/PACKAGE.txt
           grep -q "targetSdkVersion:'25'" delivery/PACKAGE.txt
           if grep -q 'application-debuggable' delivery/PACKAGE.txt; then exit 1; fi
@@ -86,4 +86,5 @@ jobs:
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/overlay-signing.jks"
+
 

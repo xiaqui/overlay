@@ -10,8 +10,8 @@ android {
         minSdk = 23
         targetSdk = 25
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 6
-        versionName = "0.6.0-display-controls"
+        versionCode = 7
+        versionName = "0.7.0-battery-finish"
     }
     signingConfigs {
         create("delivery") {
@@ -46,5 +46,6 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     testImplementation("junit:junit:4.13.2")
 }
+
 
 

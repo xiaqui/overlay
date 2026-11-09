@@ -259,7 +259,7 @@ class NavbarTest {
     }
 
     @Test fun chargingBoltContrastsWithEmptySilhouetteOnWhite() {
-        settings.set("size",28)
+        settings.set("size",28);settings.set("battery_size",28)
         settings.set("clock",false)
         settings.set("battery",true)
         settings.set("color",0)
@@ -428,8 +428,8 @@ class NavbarTest {
             settings.set("clock_left",false);settings.set("clock",true);settings.set("battery",true)
             settings.set("enabled",true);OverlayService.start(ctx)
         }
-        waitFor("right layout starts with a single status window") {
-            OverlayService.runtime?.let { it.visible && it.statusLocations.size==1 }==true
+        waitFor("independent positions use two minimal status windows") {
+            OverlayService.runtime?.let { it.visible && it.statusLocations.size==2 }==true
         }
         // Observational CI telemetry only. Emulator PSS/CPU are not device battery estimates.
         fun recordCost(mode: String) {
@@ -607,4 +607,5 @@ class NavbarTest {
         android.util.Log.i("NavbarPrototypeTest","mode=ON,api=${android.os.Build.VERSION.SDK_INT},windows=${OverlayService.runtime!!.windowCount},pssKiB=${android.os.Debug.getPss()},cpuMs=${android.os.Process.getElapsedCpuTime()-cpu},elapsedMs=${android.os.SystemClock.elapsedRealtime()-start}")
     }
 }
+
 
