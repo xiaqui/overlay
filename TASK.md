@@ -9,11 +9,11 @@
 - 電池の外側だけを時計と同じsetShadowLayerの柔らかい影で描画。空き容量コントラストは別の低濃度塗りで維持。時計描画は不変。
 - 端子・充電マーク、角丸・Navbar・Recents・全画面・タッチ透過・省メモリを保護。
 
-## 工程と現在状態
+## 工程と現在状態（完了）
 
 新規実装branchで実装・単体/描画/回帰試験→独立レビュー・P0/P1/P2対応→最終headのCI照合→PRマージ→最終mainの既存鍵署名APKをActionsで一度生成→既存Overlay専用Drive固定IDの内容更新→再取得SHA/署名/package/version/source照合→WORK_PROGRESS更新。
 
-実装中。CI・レビュー・マージ・署名・配送は確認できたものだけWORK_PROGRESSへ記録する。Android SDKをWorkへ構築しない。中間APKを配送しない。実機外観の最終判断はユーザーが行う。
+実装PR #26をマージ済み（`f8ee341f80a4c20ee73378b05cdec2f94c155f19`）。最終head `2343c9ca` のCI成功、独立レビューP0/P1/P2解消、マージmainから署名APK Artifactを1件生成し既存Drive固定IDへ上書き済み。再取得でサイズ・SHA256・署名・package/version/sourceを照合した。詳細はWORK_PROGRESS。完了済み4工程や本タスクを再実装しない。実機外観の最終判断はユーザーが行う。
 
 対象Android6〜10。API24は既存全体試験の終了ハングと区別し、今回は電池描画/移行の限定試験を実行する。実機合格とは扱わない。
 
