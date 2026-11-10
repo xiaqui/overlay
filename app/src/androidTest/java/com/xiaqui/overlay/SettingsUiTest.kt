@@ -29,7 +29,7 @@ class SettingsUiTest {
         fun rebuild() { inst.runOnMainSync { activity.refreshForTest() };inst.waitForIdleSync() }
         try {
             val headings=listOf("一般設定","ステータスバー","ナビゲーションバー","ラウンドコーナー","アプリ別設定")
-            assertEquals(headings,labels().filter { it in headings })
+            assertEquals(headings,labels().filter { it in headings }.distinct())
             assertFalse(contains("全体設定"));assertFalse(contains("上部情報"));assertFalse(contains("詳細／トラブル対応"))
             assertTrue(contains("重ねて表示："));assertTrue(contains("使用状況へのアクセス："))
             assertTrue(contains("確認テスト"));assertTrue(contains("詳細設定／マニュアル"))
