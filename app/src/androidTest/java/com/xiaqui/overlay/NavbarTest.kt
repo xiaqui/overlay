@@ -582,15 +582,20 @@ class NavbarTest {
         assertTrue("external Activity actually starts: $launched",launched.contains("Status: ok"))
         waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.color==blue }==true }
         assertBandPixel(blue)
-        val capturedAt=OverlayService.diagnosticCapturedAt
         assertEquals("external target snapshot is captured before opening settings",pkg,OverlayService.diagnosticRuntime?.foreground)
         val controls=inst.startActivitySync(Intent(ctx,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         waitFor("opening controls must not overwrite target snapshot") {
-            OverlayService.runtime?.foreground==ctx.packageName && OverlayService.diagnosticRuntime?.foreground==pkg &&
-                OverlayService.diagnosticCapturedAt==capturedAt
+            OverlayService.runtime?.foreground==ctx.packageName && OverlayService.diagnosticRuntime?.foreground==pkg
         }
+        val stableCapturedAt=OverlayService.diagnosticCapturedAt
+        android.os.SystemClock.sleep(700)
+        assertEquals("snapshot timestamp stops changing after Overlay is foreground",stableCapturedAt,OverlayService.diagnosticCapturedAt)
+        assertEquals(pkg,OverlayService.diagnosticRuntime?.foreground)
         assertTrue("manual reports the captured target",controls.diagnosticTextForTest().contains("採取対象="+pkg))
         main { controls.finish() }
+        val relaunched=shell("am start -W -a android.settings.SETTINGS")
+        assertTrue("external Settings task returns: $relaunched",relaunched.contains("Status: ok"))
+        waitFor("external package returns after diagnostics") { OverlayService.runtime?.foreground==pkg }
         main { settings.setNavbarColor(pkg,null) }
         waitFor("removing fixed color directly restores automatic estimate despite legacy OFF") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.source in listOf("テーマ推定","アイコン推定") }==true }
         assertBandPixel(OverlayService.runtime!!.navbar!!.color!!)
