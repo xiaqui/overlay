@@ -6,7 +6,7 @@
 | 実装PR / 最終head | [#32](https://github.com/xiaqui/overlay/pull/32) / `6c461c0385c7583a04938a0b1679ca59a727bdea` |
 | merge / APK source | `4a0c231dc1021ad63761f54a6954b58c520bb986` |
 | PR CI | [run 42883270082](https://github.com/xiaqui/overlay/actions/runs/42883270082) attempt 1 success |
-| main署名build | [run 42885050031](https://github.com/xiaqui/overlay/actions/runs/42885050031) success / Artifact `Overlay-signed` |
+| main署名build | [run 42885050031](https://github.com/xiaqui/overlay/actions/runs/42885050031) success / Artifact `13795343871` (`Overlay-signed`) |
 | app | `com.xiaqui.overlay` / versionCode 9 / `0.9.0-diagnostics` / min23 / target25 |
 | APK | 687172 bytes / SHA256 `a4a677a9de0066d7f5dda1ee4d7e0beb3bea8820d24855708e79c61862281dfd` |
 | 署名 | SHA256 `dcfd2c8122274ec4148473c96b1853989c8d22e58e445d6ec4889ad5b34dffb2`（既存証明書と一致） |
@@ -16,7 +16,7 @@
 
 上下バー診断は色候補を一度だけ解決して上/下へ渡し、期待ARGB、window type、要求/実座標・寸法、ready/draws、バー状態、非適用理由を詳細設定へ表示する。対象アプリの診断スナップショットはプロセス内メモリだけに保持し、設定画面を開いても直前の外部アプリ情報を確認できる。新Service、poll、権限、通信、永続ログは追加していない。Android 6/7の上側はTYPE_PHONE(2002)、下側は既存TYPE_SYSTEM_OVERLAY(2006)のままで、原因未確定の恒久切替は行わない。
 
-自動試験はJVM・Lint・buildに加えAPI23/24/26/28/29で成功。固定白が上下Specへ同一ARGBで到達し暗色化されないこと、外部前面情報が設定画面表示で失われないこと、両Layerのgeometry/type/draw、設定値保持、白→黒プレビュー、既存の画素・角丸・タッチ透過を検査した。独立レビューでP1（設定画面を開くと対象診断が自アプリで上書き、プレビュー試験陳腐化）とP2（attach失敗理由の消失、角丸OFF説明不足）を修正。GitHubレビューのP1/P2（プレビュー、対象スナップショット、時刻競合、外部task復元）も修正し、全スレッドを解決した。最終headとCI SHAを照合済み。
+自動試験はJVM・Lint・buildに加えAPI23/24/26/28/29の各jobで成功。API24は既知の全体試験終了ハングを避け、BatteryFinishTest＋SettingsUiTestに限定したためNavbar診断と既存full suiteは未実施。API23/26/28/29では、固定白が上下Specへ同一ARGBで到達し暗色化されないこと、外部前面情報が設定画面表示で失われないこと、両Layerのgeometry/type/draw、設定値保持、白→黒プレビュー、既存の画素・角丸・タッチ透過を検査した。独立レビューでP1（設定画面を開くと対象診断が自アプリで上書き、プレビュー試験陳腐化）とP2（attach失敗理由の消失、角丸OFF説明不足）を修正。GitHubレビューのP1/P2（プレビュー、対象スナップショット、時刻競合、外部task復元）も修正し、全スレッドを解決した。最終headとCI SHAを照合済み。
 
 診断上は固定白の上下指定値が一致する。Android 6エミュレータで上2002/下2006と描画経路は確認できるが、`ready=true` / `draws=true` はXperiaのSystemUIより手前に見える証明ではない。Z3TCの実画素で上下が異なる根本原因は未確定で、成功扱いしない。
 

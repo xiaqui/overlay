@@ -5,7 +5,7 @@
 ## 完了結果（2026-11-11）
 
 - 実装PR #32をmerge。設定画面の5セクション再配置、権限状態のボタン統合、白→黒の確認テスト、時計/電池の配置統合、Navbar/角丸項目の常時表示、詳細マニュアルと上下バー診断を実装した。
-- Android 6〜10相当のAPI23/24/26/28/29 CIは最終headで成功。独立レビューとGitHubレビューで検出したP1/P2は修正し、レビュー会話を解決した。
+- Android 6〜10相当のAPI23/24/26/28/29 CIは最終headで成功。ただしAPI24は既知の全体試験終了ハングを避けたBatteryFinishTest＋SettingsUiTest限定で、Navbar診断のfull suiteはAPI23/26/28/29で実施した。独立レビューとGitHubレビューで検出したP1/P2は修正し、レビュー会話を解決した。
 - 固定色 `#FFFFFFFF` が上下のSpecへ同一値で渡り、固定色を暗色化しないことを自動試験で確認。Android 6では上側TYPE_PHONE(2002)、下側TYPE_SYSTEM_OVERLAY(2006)を維持し、要求/実座標、寸法、ready/draws、非適用理由を診断表示する。描画方式の恒久変更はしていない。
 - Z3TCで上側がSystemUIに遮蔽されるかを含む実画素の原因確定は実機検収待ち。ready/drawsは可視性の証明として扱わない。
 - merge SHA `4a0c231dc1021ad63761f54a6954b58c520bb986` からversionCode 9の署名APKを1回生成し、既存固定Driveファイルへ上書き配送・再取得照合を完了した。秘密情報と固定ファイルIDはrepoへ記録しない。

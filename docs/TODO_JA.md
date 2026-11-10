@@ -8,7 +8,7 @@
 - [x] UIを「一般設定／ステータスバー／ナビゲーションバー／ラウンドコーナー／アプリ別設定」の順に変更。権限許可状態を各権限ボタン内へ統合、白→黒の一連の確認テスト、「詳細設定／マニュアル」を追加。
 - [x] 時計「右/左/なし」、電池「横右/横左/縦上/なし」を各1項目に統合して保存値互換を維持。「時計・電池の色」へ改名。
 - [x] ナビ着色OFFでも上下同色/Recents項目を表示、角丸上下OFFでも半径を表示。アプリ別の補足文言だけ削除して適用優先順位を維持。
-- [x] PR #32で実装・独立レビュー・最終headのAndroid 6〜10 CI・merge・署名APK固定Drive配送を完了。
+- [x] PR #32で実装・独立レビュー・最終headのAPI23/24/26/28/29 CI・merge・署名APK固定Drive配送を完了。API24はBatteryFinishTest＋SettingsUiTest限定で、Navbar診断full suiteは未実施。
 - [ ] Z3TC実機でChrome固定白とNoRoot Firewallを測定し、診断の上下ARGB/type/要求・実座標/ready/draws/reasonと実画素を突合する。OS時計/通知/ナビボタン、タッチ、回転、バー非表示、Recentsも確認し、SystemUI遮蔽かどうかを確定する。
 
 ## 設定画面整理
