@@ -4,7 +4,7 @@
 - [実装PR #29](https://github.com/xiaqui/overlay/pull/29)、branch `work/settings-ui-20261111`。全体/上部情報/角丸/ナビバー/アプリ別設定の5パートへ整理。詳細診断は別ダイアログ、従属UIをOFFで隠す。電池リセットUIだけ削除し、調整値・既存保存キー・移行・時計/電池/角丸描画は変更しない。スクロールYを保持。アプリ別3入口を同じアプリ画面の3編集行へ統合、設定済みを先頭にし、設定済み非ランチャーアプリも保持。Usage Access未許可でも保存/編集可能・未適用理由を表示。
 - 唯一のサービス挙動変更: Navbar着色ON時は旧navbar_autoの値によらず既存自動推定を使用。旧キーは消さず、固定色優先/明示「なし」/バー状態/Recents/キャッシュは維持。新Service/poll/権限/ライブラリなし。
 - 最終head `ee5f4e4fda27a8c11e5c792c5216b0f87125fda2`、[CI 42856680233](https://github.com/xiaqui/overlay/actions/runs/42856680233) attempt2 success。JVM・Lint・debug/androidTest build成功。API23/26/28/29各17件、API24限定5件（計73件）成功。API24は既知の全体試験終了ハングを回避して電池/UIのみ。Android 7全体回帰、API23画面OFF/ONの従来保留は継承。
-- CI初回API29は既存角丸reverse-landscape試験でバー状態更新後のView座標が不一致（1件）。同一headの当該job再実行で17件成功。製品描画を変更して回避せず、試験の揺らぎとして記録。再試験成功は実機回転保証ではない。前head `1f5e1e5c`の全5OSもsuccess。
+- CI初回API29は既存角丸reverse-landscape試験でバー状態更新後のView座標が不一致（1件）。同一headの当該job再実行で17件成功。製品描画を変更して回避していない。原因未確定の断続的不一致であり、テスト待機不足と製品側の非同期レイアウト競合は区別できていない。再試験成功は実機回転保証ではなく、実機確認待ち。前head `1f5e1e5c`の全5OSもsuccess。
 - ローカルは差分空白/シェル構文/workflow YAML等の静的検査。SDK/Gradle環境の構築・APKビルドは行わずActionsを利用。
 - 独立レビュー: 説明不足P2（全画面判定不能時の表示維持、RecentsのHome併停/不明時維持）を修正。GitHub P2の旧「固定色解除で無着色」試験期待値を、自動推定へ直接移行する待機と画素確認へ修正しthread解決。別担当が最終headを差分再レビュー、新たなP0/P1/P2なし。UIの保存値/表示条件/スクロール/一覧モデルは自動検証。実ダイアログ編集・固定色入力/キャンセル・権限画面往復の自動化不足P2は、保存キー/キャンセル無書込の静的確認と実機操作検収への保留という理由付きdispositionをPR本文に明記。全操作自動合格とは称さない。
 - merge/source SHA `077cefaa711fe00abdd5e3bcc33e7f2685b5ccf1`。merge直前にhead/base/CI成功/解決済みthreadを照合。GETのmergeableはunknownのままだったがexpected_head_sha付きmergeをGitHubが成功受付した。
