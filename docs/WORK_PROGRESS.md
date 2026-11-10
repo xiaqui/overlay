@@ -1,3 +1,23 @@
+# 設定画面整理・アプリ別設定統合（2026-11-11 JST）
+
+- 起点main `cf1dcbe6749dd5d8171a7d457caa33f9f3ee2845`、仕様PR #28を確認。mainのTASKが前工程のままだったため、#28の最新TASKと今回の明示依頼を採用。電池仕上げは完了済みで再実装しない。社長の実機外観調整完了報告をTODOへ反映。
+- [実装PR #29](https://github.com/xiaqui/overlay/pull/29)、branch `work/settings-ui-20261111`。全体/上部情報/角丸/ナビバー/アプリ別設定の5パートへ整理。詳細診断は別ダイアログ、従属UIをOFFで隠す。電池リセットUIだけ削除し、調整値・既存保存キー・移行・時計/電池/角丸描画は変更しない。スクロールYを保持。アプリ別3入口を同じアプリ画面の3編集行へ統合、設定済みを先頭にし、設定済み非ランチャーアプリも保持。Usage Access未許可でも保存/編集可能・未適用理由を表示。
+- 唯一のサービス挙動変更: Navbar着色ON時は旧navbar_autoの値によらず既存自動推定を使用。旧キーは消さず、固定色優先/明示「なし」/バー状態/Recents/キャッシュは維持。新Service/poll/権限/ライブラリなし。
+- 最終head `ee5f4e4fda27a8c11e5c792c5216b0f87125fda2`、[CI 42856680233](https://github.com/xiaqui/overlay/actions/runs/42856680233) attempt2 success。JVM・Lint・debug/androidTest build成功。API23/26/28/29各17件、API24限定5件（計73件）成功。API24は既知の全体試験終了ハングを回避して電池/UIのみ。Android 7全体回帰、API23画面OFF/ONの従来保留は継承。
+- CI初回API29は既存角丸reverse-landscape試験でバー状態更新後のView座標が不一致（1件）。同一headの当該job再実行で17件成功。製品描画を変更して回避せず、試験の揺らぎとして記録。再試験成功は実機回転保証ではない。前head `1f5e1e5c`の全5OSもsuccess。
+- ローカルは差分空白/シェル構文/workflow YAML等の静的検査。SDK/Gradle環境の構築・APKビルドは行わずActionsを利用。
+- 独立レビュー: 説明不足P2（全画面判定不能時の表示維持、RecentsのHome併停/不明時維持）を修正。GitHub P2の旧「固定色解除で無着色」試験期待値を、自動推定へ直接移行する待機と画素確認へ修正しthread解決。別担当が最終headを差分再レビュー、新たなP0/P1/P2なし。UIの保存値/表示条件/スクロール/一覧モデルは自動検証。実ダイアログ編集・固定色入力/キャンセル・権限画面往復の自動化不足P2は、保存キー/キャンセル無書込の静的確認と実機操作検収への保留という理由付きdispositionをPR本文に明記。全操作自動合格とは称さない。
+- merge/source SHA `077cefaa711fe00abdd5e3bcc33e7f2685b5ccf1`。merge直前にhead/base/CI成功/解決済みthreadを照合。GETのmergeableはunknownのままだったがexpected_head_sha付きmergeをGitHubが成功受付した。
+- 署名 [Actions 42859745107](https://github.com/xiaqui/overlay/actions/runs/42859745107) success。Artifact `13785460010`（Overlay-signed）1件、ZIP 676475 bytes / SHA256 `e752b63c2d7ccd46599cc244ecda7c63e2c9499acd6619605553f7b4ebb13a63`。最終mergeから一度だけ署名APKを生成。既存の正式Overlay専用Drive固定ファイルへAPK本体を上書き（2026-11-11 02:00 JST）、ID/親/配送URLを保持し共有変更なし。私有ID/URLはrepoへ記載しない。
+- APK `Overlay.apk`: 682086 bytes（前版680106から+1980 bytes、約0.29%）、SHA256 `227750b76a1c55fa03edac083cffe00f585f6d1469cfd381e6fbbf5059fccbbd`。com.xiaqui.overlay / versionCode8 / 0.8.0-settings / min23 / target25 / 非debuggable / INTERNET権限なし。PROVENANCEとAPK内version-control-infoのsourceは上記merge SHAに一致。
+- 署名: CI apksignerでv1/v2有効、既知SHAの0.2.0 APKと証明書一致。証明書SHA256 `dcfd2c8122274ec4148473c96b1853989c8d22e58e445d6ec4889ad5b34dffb2`。配送前に前版v7とも公開証明書を照合。秘密情報は取得/記録しない。
+- Drive再取得: 同一ID、682086 bytes、上記SHA256、ArtifactのAPKとcmp一致。再取得APKのv1 CMS署名と署名済みManifest/14エントリdigestをローカル検証。v2・package/versionはCI検査済みバイナリとのbyte一致で照合。埋込source SHAも再確認。
+- 実機未検収: 今回版の上書き更新後の既存調整値、特大文字/回転/スクロール、アプリ別編集と固定色キャンセル、権限往復、OEM固有の表示/常駐。詳細は[SETTINGS_UI_JA.md](SETTINGS_UI_JA.md)。エミュレータを実機検収済みとは扱わない。新規常駐処理なし、実機の消費電力/PSS差は未実測。
+
+本記録は配送後の文書更新。APK sourceは上記merge SHAのままとし、文書更新では再ビルドしない。
+
+---
+
 # 電池表示の最終仕上げ（2026-11-10 JST）
 
 起点main `2d17bb6d0890eca0ae559a7af5b7d55c89473b48`、仕様整理PR #25を確認して実装PR #26（`work/battery-final-20261110`）を作成。旧4工程は完了済みで再実行していない。前回#23後の外観はユーザーが概ねOKと受入した一方、今回追加する3方向・独立調整・柔らかい影の外観はまだ実機未検収。
