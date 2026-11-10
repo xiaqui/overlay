@@ -307,7 +307,8 @@ class OverlayService : Service() {
             statusbarLayer?.let { StatusbarRuntime(screenOn && it.ready,navbarCandidate?.color,it.view?.height ?: 0,
                 it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType,statusViews.map {
                     val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
-                },lastStatusElements.coerceAtLeast(0))
+                },lastStatusElements.coerceAtLeast(0),navbarLayer?.geometry(),statusbarLayer?.geometry(),
+                SystemSettings.canDrawOverlays(this),usageAllowed(this))
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -457,7 +458,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?) : IBinder?=null
     data class NavbarRuntime(val active: Boolean,val color: Int?,val source: String?,val height: Int,val windowType: Int,val reason: String,val colorLoads: Int,val draws: Int=0)
     data class StatusbarRuntime(val active: Boolean,val color: Int?,val height: Int,val reason: String,val draws: Int=0)
-    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList(),val statusElements: Int=0)
+    data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList(),val statusElements: Int=0,val navbarGeometry: LayerGeometry?=null,val statusbarGeometry: LayerGeometry?=null,val overlayAllowed: Boolean=false,val usageAllowed: Boolean=false)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
         fun usageAllowed(context: Context): Boolean {

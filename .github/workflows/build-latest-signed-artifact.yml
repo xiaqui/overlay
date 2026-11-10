@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   build:
-    # One-shot automatic delivery build after the reviewed battery-finish implementation merge.
+    # One-shot automatic delivery build after the reviewed Z3TC diagnostics implementation merge.
     # Future main updates can only run this workflow through workflow_dispatch.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == 'cf1dcbe6749dd5d8171a7d457caa33f9f3ee2845' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.before == '1b3a1ed5af31bb20ed925ac3da4cf925a73cb961' }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -63,8 +63,8 @@ jobs:
           grep -qi "certificate SHA-256 digest: $EXPECTED" delivery/SIGNATURE.txt
           "$TOOLS/aapt" dump badging delivery/Overlay.apk > delivery/PACKAGE.txt
           grep -q "package: name='com.xiaqui.overlay'" delivery/PACKAGE.txt
-          grep -q "versionCode='8'" delivery/PACKAGE.txt
-          grep -q "versionName='0.8.0-settings'" delivery/PACKAGE.txt
+          grep -q "versionCode='9'" delivery/PACKAGE.txt
+          grep -q "versionName='0.9.0-diagnostics'" delivery/PACKAGE.txt
           grep -q "sdkVersion:'23'" delivery/PACKAGE.txt
           grep -q "targetSdkVersion:'25'" delivery/PACKAGE.txt
           if grep -q 'application-debuggable' delivery/PACKAGE.txt; then exit 1; fi

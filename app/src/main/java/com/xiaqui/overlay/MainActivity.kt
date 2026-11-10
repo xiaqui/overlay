@@ -47,7 +47,7 @@ class MainActivity: Activity() {
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
         val next=ScrollView(this).apply { addView(content) };scroll=next;setContentView(next)
         fun section(label: String) { content.addView(text(label,22f)) }
-        section("全体設定")
+        section("一般設定")
         button(if(settings.bool("enabled"))"表示を停止" else "表示を開始") {
             if(!SystemSettings.canDrawOverlays(this))
                 startActivity(Intent(SystemSettings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName")))
@@ -57,64 +57,100 @@ class MainActivity: Activity() {
             }
             showSettings()
         }
-        content.addView(text(if(SystemSettings.canDrawOverlays(this))"重ねて表示：許可済み" else "重ねて表示：未許可"))
-        button("重ねて表示の許可") { startActivity(Intent(SystemSettings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName"))) }
+        button(if(SystemSettings.canDrawOverlays(this))"重ねて表示：許可済み" else "重ねて表示：未許可") {
+            startActivity(Intent(SystemSettings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName")))
+        }
         button("電池の最適化設定") { startActivity(Intent(SystemSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-        button("白背景で確認") { startActivity(Intent(this,PreviewActivity::class.java).putExtra("dark",false)) }
-        button("黒背景で確認") { startActivity(Intent(this,PreviewActivity::class.java).putExtra("dark",true)) }
-        button("詳細／トラブル対応") { showDetails() }
-        section("上部情報")
-        toggle("時計","clock",true);toggle("電池","battery",true)
-        button("文字・電池の色") {
-            choice("文字・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { settings.set("color",it) }
+        button("確認テスト") { startActivity(Intent(this,PreviewActivity::class.java)) }
+        button("詳細設定／マニュアル") { showDetails() }
+        section("ステータスバー")
+        val clockPosition=if(!settings.bool("clock",true))2 else if(settings.clockOnLeft())1 else 0
+        button("時計の配置："+arrayOf("右","左","なし")[clockPosition]) {
+            choice("時計の配置",arrayOf("右","左","なし"),clockPosition) {
+                if(it==2)settings.set("clock",false)
+                else { settings.set("clock_left",it==1);settings.set("clock",true) }
+            }
+        }
+        val directions=arrayOf("横型・端子右","横型・端子左","縦型・端子上","なし")
+        val batteryPosition=if(settings.bool("battery",true))settings.batteryDirection() else 3
+        button("電池の配置："+directions[batteryPosition]) {
+            choice("電池の配置",directions,batteryPosition) {
+                if(it==3)settings.set("battery",false)
+                else { settings.setBatteryDirection(it);settings.set("battery",true) }
+            }
+        }
+        button("時計・電池の色") {
+            choice("時計・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { settings.set("color",it) }
         }
         toggle("全画面のときだけ","fullscreen")
         if(settings.bool("fullscreen"))content.addView(text("ステータスバー非表示時に表示。判定不能時は表示を維持します。"))
         if(settings.bool("clock",true)) {
-            button("時計の左右配置：" + if(settings.clockOnLeft())"左" else "右") {
-                choice("時計の左右配置",arrayOf("右","左"),if(settings.clockOnLeft())1 else 0) { settings.set("clock_left",it==1) }
-            }
             slider("時計サイズ","size",10,28,14)
             slider("時計の横位置","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
             slider("時計の縦位置","y",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
         }
         if(settings.bool("battery",true)) {
-            val directions=arrayOf("横型・端子右","横型・端子左","縦型・端子上")
-            button("電池の向き："+directions[settings.batteryDirection()]) {
-                choice("電池の向き",directions,settings.batteryDirection()) { settings.setBatteryDirection(it) }
-            }
             slider("電池サイズ","battery_size",10,40,settings.batterySize(),"sp")
             slider("電池の縦横比","battery_aspect",60,160,100,"%（長辺補正）")
             slider("電池の横位置","battery_x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
             slider("電池の縦位置","battery_y",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
         }
-        section("角丸")
-        toggle("上の角丸","top");toggle("下の角丸","bottom")
-        if(settings.defaultMask()!=0)slider("角丸半径","radius",0,64,18)
-        section("ナビバー")
+        section("ナビゲーションバー")
         toggle("ナビバー着色","navbar_enabled")
-        if(settings.navbarEnabled()) {
-            toggle("上部バーにも同じ色を適用","navbar_unified")
-            toggle("Recentsでは着色しない","navbar_recents_off")
-            if(settings.bool("navbar_recents_off"))content.addView(text("一部端末ではHomeも無着色になります。判定不能時は着色を維持します。"))
-            content.addView(text("固定色優先、それ以外は自動推定。明るい色ではボタンの視認性に注意。"))
-        }
+        toggle("上部バーにも同じ色を適用","navbar_unified")
+        toggle("Recentsでは着色しない","navbar_recents_off")
+        if(!settings.navbarEnabled())content.addView(text("着色OFF中は下の2設定を保持しますが適用しません。"))
+        if(settings.bool("navbar_recents_off"))content.addView(text("一部端末ではHomeも無着色になります。判定不能時は着色を維持します。"))
+        content.addView(text("固定色優先、それ以外は自動推定。明るい色ではボタンの視認性に注意。"))
+        section("ラウンドコーナー")
+        toggle("上の角丸","top");toggle("下の角丸","bottom")
+        slider("角丸半径","radius",0,64,18)
         section("アプリ別設定")
-        content.addView(text(if(OverlayService.usageAllowed(this))"使用状況へのアクセス：許可済み" else "使用状況へのアクセス：未許可（保存・編集可／適用不可）"))
-        button("使用状況へのアクセスを設定") { startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS)) }
+        button(if(OverlayService.usageAllowed(this))"使用状況へのアクセス：許可済み" else "使用状況へのアクセス：未許可") {
+            startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+        if(!OverlayService.usageAllowed(this))content.addView(text("未許可でも設定は編集できますが、前面アプリへ適用されません。"))
         button("アプリ別設定") { chooseApp() }
         next.post { if(scroll===next)next.scrollTo(0,y) }
     }
+    internal fun refreshForTest()=showSettings()
     private fun showDetails() {
         val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,12,24,12) }
-        box.addView(text(settings.prefs.getString("diagnostic","まだ開始していません") ?: ""))
+        box.addView(text("使い方",18f))
+        box.addView(text("「表示を開始」には重ねて表示の許可が必要です。時計と電池は配置で「なし」を選ぶと非表示になり、サイズや位置は保存されます。全画面のときだけを使う場合、アプリ別例外には使用状況へのアクセスが必要です。"))
+        box.addView(text("ナビゲーションバーとラウンドコーナー",18f))
+        box.addView(text("着色はアプリ別固定色を優先し、未指定ならテーマやアイコンから推定します。「なし」は着色しません。Recents停止は端末によりHomeも対象になります。明るい固定色ではOSのナビボタンが読みにくい場合があります。角丸は全体の上下設定を優先します。"))
+        box.addView(text("上下同色と互換方式",18f))
+        box.addView(text("上下同色はOverlayが決めた同じ候補色を別々の窓へ渡します。OS本来のバー色を変更する機能ではなく、SystemUIの前後関係や端末制限で上側が見えない場合があります。診断のready／描画回数は画面上の可視性を証明しません。Android 6/7では互換方式の手動切替は無効です。Android 8以降は標準方式が拒否された場合に自動フォールバックします。"))
+        box.addView(text("困ったとき",18f))
+        box.addView(text("重ねて表示と使用状況アクセス、表示開始状態、対象アプリの固定色／なし、全画面・Recents、画面の向きを確認してください。確認テストは白→黒の順で時計・電池・四隅とタッチ透過を確認します。通信・広告・画面収集はありません。Android 11以降は保証外です。"))
+        box.addView(text("現在の診断",18f))
+        box.addView(text(diagnosticText()))
         box.addView(Switch(this).apply {
             text="互換表示方式（バーより背面）";isChecked=settings.bool("modern")
             setOnCheckedChangeListener { _,value->settings.set("modern",value) }
         })
-        box.addView(text("Android 6/7では方式切替は無効。Android 8以降は標準方式の拒否時に自動フォールバックします。互換方式はシステムバーより背面です。\n位置は負数も指定できます。OS文字倍率を反映します。\n全画面例外は全画面モードと使用状況アクセスが必要で、全体OFFを上書きしません。\n自動色は画面の採色ではなく推定。上下同色は同一候補色を適用する機能で、OS本来の色を取得しません。バー非表示・方向・端末制限・候補不在では同色を保証しません。\n通信・広告・画面収集なし。Android 11以降は保証外。"))
-        AlertDialog.Builder(this).setTitle("詳細／トラブル対応")
+        AlertDialog.Builder(this).setTitle("詳細設定／マニュアル")
             .setView(ScrollView(this).apply { addView(box) }).setPositiveButton("閉じる",null).show()
+    }
+    private fun diagnosticText(): String {
+        fun color(value: Int?)=value?.let { "#%08X".format(it) } ?: "不明"
+        fun geometry(label: String,g: LayerGeometry?): String {
+            if(g==null)return label+"：窓なし"
+            return label+"：色="+color(g.expectedColor)+" type="+(g.windowType ?: "不明")+
+                " ready="+g.ready+" draws="+g.draws+"\n  要求=("+g.requestedX+","+g.requestedY+
+                ") "+g.requestedWidth+"x"+g.requestedHeight+"\n  実座標=("+g.actualX+","+g.actualY+
+                ") "+g.actualWidth+"x"+g.actualHeight+"\n  理由="+g.reason
+        }
+        val r=OverlayService.runtime ?: return (settings.prefs.getString("diagnostic","まだ開始していません") ?: "まだ開始していません")+
+            "\n実行状態がないため、表示を開始して対象アプリへ切り替えてください。"
+        return "前面="+(r.foreground ?: "不明")+"\n重ねて表示="+r.overlayAllowed+" 使用状況="+r.usageAllowed+
+            " Recents停止="+r.recentsTintSuppressed+"\nバー: known="+r.bars.known+" top="+r.bars.top+
+            " bottom="+r.bars.bottom+" left="+r.bars.left+" right="+r.bars.right+
+            "\n色ソース="+(r.navbar?.source ?: "なし")+" 上期待="+color(r.statusbar?.color)+
+            " 下期待="+color(r.navbar?.color)+"\n"+geometry("上",r.statusbarGeometry)+"\n"+
+            geometry("下",r.navbarGeometry)+
+            "\nready／drawsは実画面上の可視性を証明しません。SystemUI遮蔽はZ3TC実機で確認してください。"
     }
     internal fun configuredPackages()=settings.configuredPackages()
     internal fun appEntries(): List<Pair<String,String>> {
@@ -153,7 +189,7 @@ class MainActivity: Activity() {
             edit("角丸",Policy.cornerLabels.toTypedArray(),settings.rule(pkg)) { settings.setRule(pkg,it) }
         }
         row("時計・電池の表示："+displayLabels[settings.displayRule(pkg)]+
-            if(!settings.bool("fullscreen"))"（全画面モードOFFで未適用）" else "（全体OFFは優先）") {
+            if(!settings.bool("fullscreen"))"（全画面モードOFFで未適用）" else "") {
             edit("時計・電池の表示",displayLabels,settings.displayRule(pkg)) { settings.setDisplayRule(pkg,it) }
         }
         val colorLabels=arrayOf("自動","固定色","なし")
@@ -192,6 +228,8 @@ class MainActivity: Activity() {
 
 @Suppress("DEPRECATION")
 class PreviewActivity: Activity() {
+    private var stage=0
+    private lateinit var preview: TextView
     fun applyBars(mode: String) {
         window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
@@ -206,14 +244,20 @@ class PreviewActivity: Activity() {
     }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        stage=state?.getInt("previewStage",0) ?: 0
         applyBars(intent.getStringExtra("bars") ?: "immersive")
-        val dark=intent.getBooleanExtra("dark",false)
-        setContentView(TextView(this).apply {
-            setBackgroundColor(if(dark)android.graphics.Color.BLACK else android.graphics.Color.WHITE)
-            setTextColor(if(dark)android.graphics.Color.WHITE else android.graphics.Color.BLACK)
-            text="右上の時計・電池、四隅を確認\n\nこの画面をタップして戻る\n（タッチ透過の確認）";gravity=android.view.Gravity.CENTER;textSize=18f
-            setOnClickListener { finish() }
-        })
+        preview=TextView(this).apply {
+            gravity=android.view.Gravity.CENTER;textSize=18f
+            setOnClickListener { if(stage==0) { stage=1;renderPreview() } else finish() }
+        }
+        setContentView(preview);renderPreview()
+    }
+    override fun onSaveInstanceState(state: Bundle) { state.putInt("previewStage",stage);super.onSaveInstanceState(state) }
+    private fun renderPreview() {
+        val dark=stage==1
+        preview.setBackgroundColor(if(dark)android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        preview.setTextColor(if(dark)android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+        preview.text=if(dark)"黒背景を確認\n\nタップして設定へ戻る" else "白背景を確認\n\nタップして黒背景へ\n（時計・電池・四隅・タッチ透過を確認）"
     }
 }
 

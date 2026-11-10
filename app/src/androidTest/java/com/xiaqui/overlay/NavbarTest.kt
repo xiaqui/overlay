@@ -514,6 +514,19 @@ class NavbarTest {
             it.foreground==ctx.packageName && it.navbar?.active==true && it.statusbar?.active==true && it.navbar?.color==red && it.statusbar?.color==red
         }==true }
         assertUnifiedPixels(red)
+        main { settings.setNavbarColor(ctx.packageName,Color.WHITE) }
+        waitFor("fixed white reaches both specs without darkening") { OverlayService.runtime?.let {
+            it.navbar?.active==true && it.statusbar?.active==true &&
+                it.navbar.color==Color.WHITE && it.statusbar.color==Color.WHITE &&
+                it.navbar.source=="固定色" && it.navbarGeometry?.expectedColor==Color.WHITE &&
+                it.statusbarGeometry?.expectedColor==Color.WHITE
+        }==true }
+        val whiteDiagnostic=OverlayService.runtime!!
+        assertEquals("lower band keeps active overlay type",whiteDiagnostic.primaryWindowType,whiteDiagnostic.navbarGeometry!!.windowType)
+        assertEquals("Android 6/7 upper diagnostic reports TYPE_PHONE",if(android.os.Build.VERSION.SDK_INT<26)2002 else whiteDiagnostic.primaryWindowType,whiteDiagnostic.statusbarGeometry!!.windowType)
+        assertEquals(0,whiteDiagnostic.statusbarGeometry.actualX);assertEquals(0,whiteDiagnostic.statusbarGeometry.actualY)
+        assertTrue(whiteDiagnostic.statusbarGeometry.draws>0);assertTrue(whiteDiagnostic.navbarGeometry.draws>0)
+        main { settings.setNavbarColor(ctx.packageName,red) };active()
         main { settings.setNavbarNone(ctx.packageName) }
         waitFor("per-app none stops both tints") { OverlayService.runtime?.let {
             it.foreground==ctx.packageName && it.navbar?.active==false && it.navbar?.color==null && it.statusbar?.active!=true &&
