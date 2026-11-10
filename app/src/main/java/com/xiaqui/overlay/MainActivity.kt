@@ -105,6 +105,7 @@ class MainActivity: Activity() {
         section("ラウンドコーナー")
         toggle("上の角丸","top");toggle("下の角丸","bottom")
         slider("角丸半径","radius",0,64,18)
+        if(settings.defaultMask()==0)content.addView(text("上下OFF中は半径を保持しますが適用しません。"))
         section("アプリ別設定")
         button(if(OverlayService.usageAllowed(this))"使用状況へのアクセス：許可済み" else "使用状況へのアクセス：未許可") {
             startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS))
@@ -135,23 +136,28 @@ class MainActivity: Activity() {
     }
     private fun diagnosticText(): String {
         fun color(value: Int?)=value?.let { "#%08X".format(it) } ?: "不明"
-        fun geometry(label: String,g: LayerGeometry?): String {
-            if(g==null)return label+"：窓なし"
+        fun geometry(label: String,g: LayerGeometry?,fallback: String?): String {
+            if(g==null)return label+"：窓なし 理由="+(fallback ?: "不明")
             return label+"：色="+color(g.expectedColor)+" type="+(g.windowType ?: "不明")+
                 " ready="+g.ready+" draws="+g.draws+"\n  要求=("+g.requestedX+","+g.requestedY+
                 ") "+g.requestedWidth+"x"+g.requestedHeight+"\n  実座標=("+g.actualX+","+g.actualY+
                 ") "+g.actualWidth+"x"+g.actualHeight+"\n  理由="+g.reason
         }
-        val r=OverlayService.runtime ?: return (settings.prefs.getString("diagnostic","まだ開始していません") ?: "まだ開始していません")+
+        val current=OverlayService.runtime
+        val r=OverlayService.diagnosticRuntime ?: current ?: return (settings.prefs.getString("diagnostic","まだ開始していません") ?: "まだ開始していません")+
             "\n実行状態がないため、表示を開始して対象アプリへ切り替えてください。"
-        return "前面="+(r.foreground ?: "不明")+"\n重ねて表示="+r.overlayAllowed+" 使用状況="+r.usageAllowed+
+        val captured=if(OverlayService.diagnosticRuntime!=null && OverlayService.diagnosticCapturedAt>0)
+            java.text.DateFormat.getDateTimeInstance().format(java.util.Date(OverlayService.diagnosticCapturedAt)) else "現在"
+        return "採取対象="+(r.foreground ?: "不明")+" 採取時刻="+captured+
+            "\n現在前面="+(current?.foreground ?: "不明")+"\n重ねて表示="+r.overlayAllowed+" 使用状況="+r.usageAllowed+
             " Recents停止="+r.recentsTintSuppressed+"\nバー: known="+r.bars.known+" top="+r.bars.top+
             " bottom="+r.bars.bottom+" left="+r.bars.left+" right="+r.bars.right+
             "\n色ソース="+(r.navbar?.source ?: "なし")+" 上期待="+color(r.statusbar?.color)+
-            " 下期待="+color(r.navbar?.color)+"\n"+geometry("上",r.statusbarGeometry)+"\n"+
-            geometry("下",r.navbarGeometry)+
+            " 下期待="+color(r.navbar?.color)+"\n"+geometry("上",r.statusbarGeometry,r.statusbar?.reason)+"\n"+
+            geometry("下",r.navbarGeometry,r.navbar?.reason)+
             "\nready／drawsは実画面上の可視性を証明しません。SystemUI遮蔽はZ3TC実機で確認してください。"
     }
+    internal fun diagnosticTextForTest()=diagnosticText()
     internal fun configuredPackages()=settings.configuredPackages()
     internal fun appEntries(): List<Pair<String,String>> {
         val pm=packageManager

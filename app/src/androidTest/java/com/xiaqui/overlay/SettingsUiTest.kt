@@ -37,6 +37,7 @@ class SettingsUiTest {
             assertTrue(contains("時計・電池の色"));assertTrue(contains("時計サイズ: 19"));assertTrue(contains("電池サイズ: 31"))
             assertTrue("Navbar children stay visible while master is OFF",contains("上部バーにも同じ色を適用"))
             assertTrue("radius stays visible while both masks are OFF",contains("角丸半径: 29"))
+            assertTrue(contains("上下OFF中は半径を保持しますが適用しません。"))
             assertTrue(s.bool("navbar_unified"));assertEquals(-17,s.offset("battery_x",0));assertEquals(123,s.batteryAspect())
             s.set("clock",false);s.set("battery",false);rebuild()
             assertTrue(contains("時計の配置：なし"));assertTrue(contains("電池の配置：なし"))

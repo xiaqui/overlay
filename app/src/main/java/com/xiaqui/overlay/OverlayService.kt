@@ -42,6 +42,7 @@ class OverlayService : Service() {
     private var navbarKey: String?=null
     private var navbarCandidate: NavbarColor?=null
     private var navbarReason="未適用"
+    private var statusbarReason="未適用"
     private var recentsTintSuppressed=false
     private var lastBandOwned=false
     private var packagesRegistered=false
@@ -228,7 +229,7 @@ class OverlayService : Service() {
                     StatusbarLayer(this,wm,{ w,h->params(w,h,Gravity.TOP or Gravity.LEFT,statusType) },
                         { v,p->add(v,p) },{ v->windows.remove(v);wm.removeViewImmediate(v) },
                         { handler.removeCallbacks(onBarsChanged);handler.post(onBarsChanged) }).also {
-                        if(it.attach())statusbarLayer=it
+                        statusbarLayer=it;it.attach()
                     }
                 }
                 if(settings.needsBars())attachBarObservation()
@@ -300,15 +301,21 @@ class OverlayService : Service() {
         publishRuntime()
     }
     private fun publishRuntime() {
-        runtime=RuntimeState(screenOn && statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
+        val state=RuntimeState(screenOn && statusViews.any { it.visibility==View.VISIBLE },bars,foreground,foregroundTarget?.className,lastCornerLayout ?: emptyList(),cornerWindows.map {
             val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
         },if(settings.navbarEnabled())NavbarRuntime(screenOn && navbarLayer?.ready==true,navbarCandidate?.color,navbarCandidate?.source,
             navbarLayer?.view?.height ?: 0,activeType,navbarLayer?.reason ?: navbarReason,navbarColors?.loads ?: 0,navbarLayer?.view?.draws ?: 0) else null,
-            statusbarLayer?.let { StatusbarRuntime(screenOn && it.ready,navbarCandidate?.color,it.view?.height ?: 0,
-                it.reason,it.view?.draws ?: 0) },recentsTintSuppressed,windows.size,activeType,statusViews.map {
+            if(settings.navbarEnabled())StatusbarRuntime(screenOn && statusbarLayer?.ready==true,
+                if(settings.unifiedBars())navbarCandidate?.color else null,statusbarLayer?.view?.height ?: 0,
+                statusbarLayer?.reason ?: statusbarReason,statusbarLayer?.view?.draws ?: 0) else null,
+            recentsTintSuppressed,windows.size,activeType,statusViews.map {
                     val p=IntArray(2);it.getLocationOnScreen(p);CornerOffset(p[0],p[1])
                 },lastStatusElements.coerceAtLeast(0),navbarLayer?.geometry(),statusbarLayer?.geometry(),
                 SystemSettings.canDrawOverlays(this),usageAllowed(this))
+        runtime=state
+        if(state.foreground!=null && state.foreground!=packageName) {
+            diagnosticRuntime=state;diagnosticCapturedAt=System.currentTimeMillis()
+        }
     }
     private fun syncNavbarPackages() {
         if(settings.navbarEnabled() && !packagesRegistered) {
@@ -370,11 +377,18 @@ class OverlayService : Service() {
         return spec
     }
     private fun statusbarSpec(display: android.graphics.Point,tint: TintResolution,mode: Int,mask: Int,r: Int): StatusbarSpec? {
-        if(!settings.unifiedBars() || tint.suppressed)return null
-        val color=tint.color ?: return null
+        if(!settings.navbarEnabled()) { statusbarReason="ナビバー着色OFF";return null }
+        if(!settings.unifiedBars()) { statusbarReason="上下同色OFF";return null }
+        if(tint.suppressed) { statusbarReason="Recents判定で停止";return null }
+        val color=tint.color ?: run { statusbarReason="候補色なし："+navbarReason;return null }
         val portrait=resources.configuration.orientation==Configuration.ORIENTATION_PORTRAIT && display.y>display.x
-        if(!portrait || !bars.known || bars.top<=0 || bars.top>display.y/3 || bars.left>0 || bars.right>0)return null
+        if(!portrait) { statusbarReason="縦画面以外";return null }
+        if(!bars.known) { statusbarReason="システムバー状態不明";return null }
+        if(bars.top<=0) { statusbarReason="ステータスバー非表示";return null }
+        if(bars.top>display.y/3) { statusbarReason="上部バー高が異常";return null }
+        if(bars.left>0 || bars.right>0) { statusbarReason="側面システムバーのため対象外";return null }
         val topAtPhysicalEdge=mode!=Policy.TOP_INSIDE && mode!=Policy.BOTH_INSIDE
+        statusbarReason="spec成立・配置待ち"
         return StatusbarSpec(display.x,bars.top,color,r,mask and 1!=0 && topAtPhysicalEdge)
     }
     private fun updateForeground() {
@@ -407,7 +421,8 @@ class OverlayService : Service() {
         val r=(settings.number("radius",18)*resources.displayMetrics.density).toInt()
         val display=android.graphics.Point();wm.defaultDisplay.getRealSize(display)
         val tint=if(settings.navbarEnabled())tintResolution() else TintResolution(null,false)
-        statusbarLayer?.apply(statusbarSpec(display,tint,mode,mask,r))
+        val upperSpec=statusbarSpec(display,tint,mode,mask,r)
+        statusbarLayer?.apply(upperSpec,statusbarReason)
         var bandOwned=false
         if(settings.navbarEnabled()) {
             val spec=navbarSpec(mode,mask,r,display,tint)
@@ -461,6 +476,8 @@ class OverlayService : Service() {
     data class RuntimeState(val visible: Boolean,val bars: BarState,val foreground: String?,val foregroundClass: String?,val offsets: List<CornerOffset>,val locations: List<CornerOffset>,val navbar: NavbarRuntime?=null,val statusbar: StatusbarRuntime?=null,val recentsTintSuppressed: Boolean=false,val windowCount: Int=0,val primaryWindowType: Int=2006,val statusLocations: List<CornerOffset> = emptyList(),val statusElements: Int=0,val navbarGeometry: LayerGeometry?=null,val statusbarGeometry: LayerGeometry?=null,val overlayAllowed: Boolean=false,val usageAllowed: Boolean=false)
     companion object {
         @Volatile internal var runtime: RuntimeState?=null
+        @Volatile internal var diagnosticRuntime: RuntimeState?=null
+        @Volatile internal var diagnosticCapturedAt: Long=0
         fun usageAllowed(context: Context): Boolean {
             val ops=context.getSystemService(APP_OPS_SERVICE) as AppOpsManager
             return ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,android.os.Process.myUid(),context.packageName)==AppOpsManager.MODE_ALLOWED

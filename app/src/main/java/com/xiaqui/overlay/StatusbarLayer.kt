@@ -92,9 +92,9 @@ class StatusbarLayer(private val context: Context,private val wm: WindowManager,
     private fun reject(spec: StatusbarSpec) {
         failed=spec;hide("上側着色を配置できないため停止");changed()
     }
-    fun apply(spec: StatusbarSpec?): Boolean {
+    fun apply(spec: StatusbarSpec?,absentReason: String="対象外・無着色"): Boolean {
         val v=view ?: return false
-        if(spec==null) { failed=null;hide();return false }
+        if(spec==null) { failed=null;hide(absentReason);return false }
         if(failed==spec)return false
         if(v.spec==spec) {
             if(ready)return true
