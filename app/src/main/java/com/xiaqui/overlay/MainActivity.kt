@@ -69,6 +69,7 @@ class MainActivity: Activity() {
             choice("文字・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { settings.set("color",it) }
         }
         toggle("全画面のときだけ","fullscreen")
+        if(settings.bool("fullscreen"))content.addView(text("ステータスバー非表示時に表示。判定不能時は表示を維持します。"))
         if(settings.bool("clock",true)) {
             button("時計の左右配置：" + if(settings.clockOnLeft())"左" else "右") {
                 choice("時計の左右配置",arrayOf("右","左"),if(settings.clockOnLeft())1 else 0) { settings.set("clock_left",it==1) }
@@ -95,6 +96,7 @@ class MainActivity: Activity() {
         if(settings.navbarEnabled()) {
             toggle("上部バーにも同じ色を適用","navbar_unified")
             toggle("Recentsでは着色しない","navbar_recents_off")
+            if(settings.bool("navbar_recents_off"))content.addView(text("一部端末ではHomeも無着色になります。判定不能時は着色を維持します。"))
             content.addView(text("固定色優先、それ以外は自動推定。明るい色ではボタンの視認性に注意。"))
         }
         section("アプリ別設定")
@@ -115,7 +117,7 @@ class MainActivity: Activity() {
             .setView(ScrollView(this).apply { addView(box) }).setPositiveButton("閉じる",null).show()
     }
     internal fun configuredPackages()=settings.configuredPackages()
-    private fun chooseApp() {
+    internal fun appEntries(): List<Pair<String,String>> {
         val pm=packageManager
         val packages=pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0)
             .map { it.activityInfo.packageName }.toMutableSet()
@@ -123,9 +125,13 @@ class MainActivity: Activity() {
         val labels=packages.associateWith { pkg->runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg,0)).toString() }.getOrDefault(pkg) }
         val configured=configuredPackages()
         val sorted=packages.sortedWith(compareBy<String> { if(it in configured)0 else 1 }.thenBy { labels[it] }.thenBy { it })
+        return sorted.map { it to (labels[it] ?: it) }
+    }
+    private fun chooseApp() {
+        val entries=appEntries();val configured=configuredPackages()
         AlertDialog.Builder(this).setTitle("アプリ別設定").setItems(
-            sorted.map { (if(it in configured)"設定済み： " else "")+labels[it] }.toTypedArray()
-        ) { _,i->showAppSettings(sorted[i],labels[sorted[i]] ?: sorted[i]) }.setNegativeButton("戻る",null).show()
+            entries.map { (if(it.first in configured)"設定済み： " else "")+it.second }.toTypedArray()
+        ) { _,i->showAppSettings(entries[i].first,entries[i].second) }.setNegativeButton("戻る",null).show()
     }
     private val displayLabels=arrayOf("自動判定","時計・電池を表示","時計・電池を非表示","時計のみ表示","電池のみ表示")
     private fun showAppSettings(pkg: String,label: String) {

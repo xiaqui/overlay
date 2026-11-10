@@ -30,6 +30,18 @@ class SettingsUiTest {
             click("時計");assertFalse(contains("時計サイズ"));click("時計");assertTrue(contains("時計サイズ"))
             click("上の角丸");assertFalse(contains("角丸半径"));assertEquals(29,s.number("radius",0))
             click("上の角丸");assertTrue(contains("角丸半径: 29"))
+            val nav=s.navbarEnabled()
+            if(!nav)click("ナビバー着色")
+            assertTrue(contains("上部バーにも同じ色を適用"))
+            click("ナビバー着色");assertFalse(contains("上部バーにも同じ色を適用"));assertTrue(s.bool("navbar_unified"))
+            click("ナビバー着色");assertTrue(contains("上部バーにも同じ色を適用"))
+            s.setNavbarNone(inst.context.packageName)
+            assertEquals("saved non-launcher test APK remains selectable first",inst.context.packageName,activity.appEntries().first().first)
+            val scroll=views(activity.window.decorView).filterIsInstance<android.widget.ScrollView>().first()
+            inst.runOnMainSync { scroll.scrollTo(0,100) };inst.waitForIdleSync()
+            click("電池")
+            val replacement=views(activity.window.decorView).filterIsInstance<android.widget.ScrollView>().first()
+            assertEquals("toggle preserves scroll position",100,replacement.scrollY)
         } finally { inst.runOnMainSync { activity.finish() };s.prefs.edit().clear().commit() }
     }
     @Test fun explicitNormalAndNoneCountAsConfiguredWithoutMutation() {
