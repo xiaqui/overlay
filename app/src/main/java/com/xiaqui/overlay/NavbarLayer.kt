@@ -5,6 +5,11 @@ import android.graphics.*
 import android.view.View
 import android.view.WindowManager
 
+data class LayerGeometry(val windowType: Int?,val requestedX: Int?,val requestedY: Int?,
+    val requestedWidth: Int?,val requestedHeight: Int?,val actualX: Int?,val actualY: Int?,
+    val actualWidth: Int?,val actualHeight: Int?,val expectedColor: Int?,val ready: Boolean,
+    val draws: Int,val reason: String)
+
 data class NavbarSpec(val width: Int,val screenHeight: Int,val navHeight: Int,val radius: Int,val bottom: Boolean,val inside: Boolean,val color: NavbarColor,val tintVisible: Boolean=true) {
     val height get()=navHeight+if(bottom)radius else 0
     val top get()=screenHeight-height
@@ -48,6 +53,16 @@ class NavbarLayer(private val context: Context,private val wm: WindowManager,
     var reason="未適用";private set
     private var failed: NavbarSpec?=null
     private var started=0L
+    fun geometry(): LayerGeometry {
+        val v=view
+        val lp=v?.layoutParams as? WindowManager.LayoutParams
+        val actual=IntArray(2)
+        if(v?.isAttachedToWindow==true)v.getLocationOnScreen(actual)
+        return LayerGeometry(lp?.type,lp?.x,lp?.y,lp?.width,lp?.height,
+            if(v?.isAttachedToWindow==true)actual[0] else null,
+            if(v?.isAttachedToWindow==true)actual[1] else null,
+            v?.width,v?.height,v?.spec?.color?.color,ready,v?.draws ?: 0,reason)
+    }
     fun clear() {
         val old=view;view=null;ready=false
         if(old!=null)runCatching { remove(old) }
@@ -107,3 +122,4 @@ class NavbarLayer(private val context: Context,private val wm: WindowManager,
         return ready
     }
 }
+

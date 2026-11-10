@@ -51,6 +51,18 @@ class StatusbarLayer(private val context: Context,private val wm: WindowManager,
     private var failed: StatusbarSpec?=null
     private var started=0L
 
+    fun geometry(): LayerGeometry {
+        val v=view
+        val spec=v?.spec
+        val lp=v?.layoutParams as? WindowManager.LayoutParams
+        val actual=IntArray(2)
+        if(v?.isAttachedToWindow==true)v.getLocationOnScreen(actual)
+        return LayerGeometry(lp?.type,lp?.x,lp?.y,lp?.width,lp?.height,
+            if(v?.isAttachedToWindow==true)actual[0] else null,
+            if(v?.isAttachedToWindow==true)actual[1] else null,
+            v?.width,v?.height,spec?.color?.color,ready,v?.draws ?: 0,reason)
+    }
+
     fun attach(): Boolean {
         if(view!=null)return true
         return try {
@@ -80,9 +92,9 @@ class StatusbarLayer(private val context: Context,private val wm: WindowManager,
     private fun reject(spec: StatusbarSpec) {
         failed=spec;hide("上側着色を配置できないため停止");changed()
     }
-    fun apply(spec: StatusbarSpec?): Boolean {
+    fun apply(spec: StatusbarSpec?,absentReason: String="対象外・無着色"): Boolean {
         val v=view ?: return false
-        if(spec==null) { failed=null;hide();return false }
+        if(spec==null) { failed=null;hide(absentReason);return false }
         if(failed==spec)return false
         if(v.spec==spec) {
             if(ready)return true
@@ -105,3 +117,4 @@ class StatusbarLayer(private val context: Context,private val wm: WindowManager,
         } catch (_: RuntimeException) { reject(spec);false }
     }
 }
+

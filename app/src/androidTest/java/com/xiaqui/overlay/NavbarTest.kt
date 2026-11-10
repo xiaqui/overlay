@@ -417,6 +417,7 @@ class NavbarTest {
                 { w,h->WindowManager.LayoutParams(w,h,2002,24,-3).apply { gravity=Gravity.TOP or Gravity.LEFT } },
                 { _,_->throw WindowManager.BadTokenException("test rejection") },{}, {})
             assertFalse("top failure remains local",statusLayer.attach());assertNull(statusLayer.view)
+            assertTrue(statusLayer.geometry().reason.contains("作れない"))
         }
     }
     @Test fun clockSideDefaultsRightAndLeftModeKeepsBatteryRightAcrossRotationAndToggles() {
@@ -514,11 +515,27 @@ class NavbarTest {
             it.foreground==ctx.packageName && it.navbar?.active==true && it.statusbar?.active==true && it.navbar?.color==red && it.statusbar?.color==red
         }==true }
         assertUnifiedPixels(red)
+        main { settings.setNavbarColor(ctx.packageName,Color.WHITE) }
+        waitFor("fixed white reaches both specs without darkening") { OverlayService.runtime?.let {
+            val navbar=it.navbar;val statusbar=it.statusbar
+            navbar?.active==true && statusbar?.active==true &&
+                navbar.color==Color.WHITE && statusbar.color==Color.WHITE &&
+                navbar.source=="固定色" && it.navbarGeometry?.expectedColor==Color.WHITE &&
+                it.statusbarGeometry?.expectedColor==Color.WHITE
+        }==true }
+        val whiteDiagnostic=OverlayService.runtime!!
+        val lowerGeometry=whiteDiagnostic.navbarGeometry!!;val upperGeometry=whiteDiagnostic.statusbarGeometry!!
+        assertEquals("lower band keeps active overlay type",whiteDiagnostic.primaryWindowType,lowerGeometry.windowType)
+        assertEquals("Android 6/7 upper diagnostic reports TYPE_PHONE",if(android.os.Build.VERSION.SDK_INT<26)2002 else whiteDiagnostic.primaryWindowType,upperGeometry.windowType)
+        assertEquals(0,upperGeometry.actualX);assertEquals(0,upperGeometry.actualY)
+        assertTrue(upperGeometry.draws>0);assertTrue(lowerGeometry.draws>0)
+        main { settings.setNavbarColor(ctx.packageName,red) };active()
         main { settings.setNavbarNone(ctx.packageName) }
         waitFor("per-app none stops both tints") { OverlayService.runtime?.let {
             it.foreground==ctx.packageName && it.navbar?.active==false && it.navbar?.color==null && it.statusbar?.active!=true &&
                 !it.recentsTintSuppressed && it.locations.size==4
         }==true }
+        assertTrue("diagnostic separates candidate absence",OverlayService.runtime!!.statusbar!!.reason.contains("候補色なし"))
         main { settings.setNavbarColor(ctx.packageName,red) };active();waitFor("fixed tint restores after none") { OverlayService.runtime?.statusbar?.active==true }
         var unifiedShot=inst.uiAutomation.takeScreenshot()!!
         val cornerRadius=(settings.number("radius",18)*ctx.resources.displayMetrics.density).toInt()
@@ -565,6 +582,20 @@ class NavbarTest {
         assertTrue("external Activity actually starts: $launched",launched.contains("Status: ok"))
         waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.color==blue }==true }
         assertBandPixel(blue)
+        assertEquals("external target snapshot is captured before opening settings",pkg,OverlayService.diagnosticRuntime?.foreground)
+        val controls=inst.startActivitySync(Intent(ctx,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        waitFor("opening controls must not overwrite target snapshot") {
+            OverlayService.runtime?.foreground==ctx.packageName && OverlayService.diagnosticRuntime?.foreground==pkg
+        }
+        val stableCapturedAt=OverlayService.diagnosticCapturedAt
+        android.os.SystemClock.sleep(700)
+        assertEquals("snapshot timestamp stops changing after Overlay is foreground",stableCapturedAt,OverlayService.diagnosticCapturedAt)
+        assertEquals(pkg,OverlayService.diagnosticRuntime?.foreground)
+        assertTrue("manual reports the captured target",controls.diagnosticTextForTest().contains("採取対象="+pkg))
+        main { controls.finish() }
+        val relaunched=shell("am start -W -a android.settings.SETTINGS")
+        assertTrue("external Settings task returns: $relaunched",relaunched.contains("Status: ok"))
+        waitFor("external package returns after diagnostics") { OverlayService.runtime?.foreground==pkg }
         main { settings.setNavbarColor(pkg,null) }
         waitFor("removing fixed color directly restores automatic estimate despite legacy OFF") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.source in listOf("テーマ推定","アイコン推定") }==true }
         assertBandPixel(OverlayService.runtime!!.navbar!!.color!!)

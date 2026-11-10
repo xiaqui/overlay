@@ -37,13 +37,12 @@ class OverlaySmokeTest {
                 OverlayService.start(context)
             }
             waitFor(if(android.os.Build.VERSION.SDK_INT==24)30_000L else 10_000L) { settings.prefs.getString("diagnostic","")?.startsWith("旧方式 2006")==true }
-            for(dark in listOf(false,true)) {
-                val preview=instrumentation.startActivitySync(Intent(context,PreviewActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra("dark",dark))
-                assertNotNull("Preview reached foreground",preview)
-                instrumentation.waitForIdleSync()
-                android.os.SystemClock.sleep(1000) // Preserve original overlay/font settling time.
-                val background=if(dark)0 else 0xFFFFFF
+            val preview=instrumentation.startActivitySync(Intent(context,PreviewActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+            assertNotNull("Preview reached foreground",preview)
+            instrumentation.waitForIdleSync()
+            android.os.SystemClock.sleep(1000)
+            for((stage,background) in listOf(0 to 0xFFFFFF,1 to 0)) {
                 // After real navigation-button tests, SystemUI may retain a transient bar for
                 // longer than 1s. Require actual hidden-bar pixels, not an arbitrary sleep.
                 waitFor {
@@ -65,7 +64,7 @@ class OverlaySmokeTest {
                     assertEquals("Black corner at $x,$y",0,bitmap.getPixel(x,y) and 0xFFFFFF)
                 }
                 // White clock/battery pixels survive on a black fullscreen activity.
-                if(dark) {
+                if(stage==1) {
                     var bright=0
                     val density=context.resources.displayMetrics.density
                     val xmin=(bitmap.width-160*density).toInt().coerceAtLeast(0)
@@ -80,7 +79,14 @@ class OverlaySmokeTest {
                 val y=(12*context.resources.displayMetrics.density).toInt()
                 bitmap.recycle()
                 shell("input tap $x $y")
-                waitFor { preview!!.isFinishing || preview.isDestroyed }
+                if(stage==0) {
+                    waitFor {
+                        val frame=instrumentation.uiAutomation.takeScreenshot()
+                        if(frame==null)false else try {
+                            (frame.getPixel(frame.width/2,frame.height/4) and 0xFFFFFF)==0
+                        } finally { frame.recycle() }
+                    }
+                } else waitFor { preview!!.isFinishing || preview.isDestroyed }
             }
             instrumentation.runOnMainSync { settings.set("enabled",false);context.stopService(Intent(context,OverlayService::class.java)) }
             waitFor { !shell("dumpsys activity services ${context.packageName}").contains("ServiceRecord{") }
@@ -94,4 +100,5 @@ class OverlaySmokeTest {
         }
     }
 }
+
 
