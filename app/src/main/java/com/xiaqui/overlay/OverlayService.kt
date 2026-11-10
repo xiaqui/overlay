@@ -341,7 +341,7 @@ class OverlayService : Service() {
                 return TintResolution(null,true)
             }
         }
-        val fixed=settings.navbarColor(pkg);val automatic=settings.bool("navbar_auto")
+        val fixed=settings.navbarColor(pkg);val automatic=true
         val key="$pkg:$appMode:$fixed:$automatic"
         if(key!=navbarKey) {
             navbarCandidate=if(fixed==null && !automatic)null else {

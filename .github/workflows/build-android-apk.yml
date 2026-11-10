@@ -2,7 +2,7 @@ name: Overlay display finish checks and signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, work/settings-ui-20261111]
     paths: ['app/**', '*.gradle.kts', 'gradle.properties', '.github/workflows/**', '.github/scripts/**']
   pull_request:
     branches: [main]

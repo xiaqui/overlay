@@ -566,15 +566,13 @@ class NavbarTest {
         waitFor("external package fixed color follows usage events") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.color==blue }==true }
         assertBandPixel(blue)
         main { settings.setNavbarColor(pkg,null) }
-        waitFor("unset external app clears tint") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==false }==true }
-        main { settings.set("navbar_auto",true) }
-        waitFor("external APK automatic estimate applied") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.source in listOf("テーマ推定","アイコン推定") }==true }
+        waitFor("removing fixed color directly restores automatic estimate despite legacy OFF") { OverlayService.runtime?.let { it.foreground==pkg && it.navbar?.active==true && it.navbar?.source in listOf("テーマ推定","アイコン推定") }==true }
         assertBandPixel(OverlayService.runtime!!.navbar!!.color!!)
         val cachedLoads=OverlayService.runtime!!.navbar!!.colorLoads
         android.os.SystemClock.sleep(1600)
         assertEquals("poll reuses cached automatic estimate",cachedLoads,OverlayService.runtime!!.navbar!!.colorLoads)
         main { settings.set("navbar_auto",false) }
-        waitFor("automatic OFF removes unset app tint") { OverlayService.runtime?.navbar?.active==false }
+        waitFor("legacy automatic OFF no longer disables standard estimation") { OverlayService.runtime?.navbar?.active==true }
         launch();active()
         shell("appops set ${ctx.packageName} GET_USAGE_STATS ignore")
         waitFor("usage permission revoke clears stale color") { OverlayService.runtime?.let { it.foreground==null && it.navbar?.active==false }==true }

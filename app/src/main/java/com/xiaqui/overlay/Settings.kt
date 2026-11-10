@@ -55,6 +55,10 @@ class Settings(context: Context) {
         }.apply()
     }
     fun navbarEnabled()=bool("navbar_enabled")
+    fun configuredPackages()=prefs.all.keys.mapNotNull { key->
+        listOf("corner2:","display:","navbar:","navbarMode:").firstOrNull { key.startsWith(it) }
+            ?.let { key.removePrefix(it) }
+    }.toSet()
     fun unifiedBars()=navbarEnabled() && bool("navbar_unified")
     fun suppressRecentsTint()=navbarEnabled() && bool("navbar_recents_off")
     fun navbarMode(pkg: String): Int {
