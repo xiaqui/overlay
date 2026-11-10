@@ -574,7 +574,7 @@ class NavbarTest {
         android.os.SystemClock.sleep(1600)
         assertEquals("poll reuses cached automatic estimate",cachedLoads,OverlayService.runtime!!.navbar!!.colorLoads)
         main { settings.set("navbar_auto",false) }
-        waitFor("automatic OFF removes unset app tint") { OverlayService.runtime?.navbar?.active==false }
+        waitFor("legacy automatic OFF no longer disables standard estimation") { OverlayService.runtime?.navbar?.active==true }
         launch();active()
         shell("appops set ${ctx.packageName} GET_USAGE_STATS ignore")
         waitFor("usage permission revoke clears stale color") { OverlayService.runtime?.let { it.foreground==null && it.navbar?.active==false }==true }

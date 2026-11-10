@@ -11,7 +11,7 @@ trap cleanup_crashpad EXIT
 adb shell settings put secure immersive_mode_confirmations confirmed
 test_args=()
 if [ "${OVERLAY_TEST_API:-}" = 24 ]; then
-  test_args+=('-Pandroid.testInstrumentationRunnerArguments.class=com.xiaqui.overlay.BatteryFinishTest')
+  test_args+=('-Pandroid.testInstrumentationRunnerArguments.class=com.xiaqui.overlay.BatteryFinishTest,com.xiaqui.overlay.SettingsUiTest')
 fi
 if ! gradle connectedDebugAndroidTest --no-daemon "${test_args[@]}"; then
   timeout --signal=TERM --kill-after=5s 15s adb logcat -d -s OverlayBarsTest:I NavbarPrototypeTest:I OverlayPerf:I TestRunner:I AndroidRuntime:E '*:S' || true
