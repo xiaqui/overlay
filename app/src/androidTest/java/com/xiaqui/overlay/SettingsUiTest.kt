@@ -35,6 +35,14 @@ class SettingsUiTest {
             assertTrue(contains("重ねて表示："));assertTrue(contains("使用状況へのアクセス："))
             assertTrue(contains("確認テスト"));assertTrue(contains("詳細設定／マニュアル"))
             assertTrue(contains("時計の配置：左"));assertTrue(contains("電池の配置：横型・端子左"))
+            val statusLabels=labels()
+            val colorIndex=statusLabels.indexOfFirst { it=="時計・電池の色" }
+            val fullscreenIndex=statusLabels.indexOfFirst { it=="全画面のときだけ" }
+            val clockIndex=statusLabels.indexOfFirst { it.startsWith("時計の配置：") }
+            val clockSliderIndex=statusLabels.indexOfFirst { it.startsWith("時計サイズ:") }
+            val batteryIndex=statusLabels.indexOfFirst { it.startsWith("電池の配置：") }
+            val batterySliderIndex=statusLabels.indexOfFirst { it.startsWith("電池サイズ:") }
+            assertTrue("status menu order",colorIndex in 0 until fullscreenIndex && fullscreenIndex<clockIndex && clockIndex<clockSliderIndex && clockSliderIndex<batteryIndex && batteryIndex<batterySliderIndex)
             assertTrue(contains("時計・電池の色"));assertTrue(contains("時計サイズ: 19"));assertTrue(contains("電池サイズ: 31"))
             assertTrue("Navbar children stay visible while master is OFF",contains("上部バーにも同じ色を適用"))
             assertTrue("radius stays visible while both masks are OFF",contains("角丸半径: 29"))
