@@ -12,17 +12,14 @@ import android.widget.*
 class MainActivity: Activity() {
     private lateinit var settings: Settings
     private lateinit var content: LinearLayout
-    private var scroll: ScrollView?=null
-    private var savedScroll=0
-    override fun onCreate(state: Bundle?) { super.onCreate(state);settings=Settings(this);savedScroll=state?.getInt("settingsScroll",0) ?: 0 }
-    override fun onSaveInstanceState(state: Bundle) { state.putInt("settingsScroll",scroll?.scrollY ?: savedScroll);super.onSaveInstanceState(state) }
+    override fun onCreate(state: Bundle?) { super.onCreate(state);settings=Settings(this) }
     override fun onResume() { super.onResume();if(settings.bool("enabled")) OverlayService.start(this);showSettings() }
     private fun text(value: String,size: Float=14f) = TextView(this).apply { text=value;textSize=size;setPadding(0,12,0,8) }
     private fun button(label: String,action: ()->Unit) { content.addView(Button(this).apply { text=label;setOnClickListener { action() } }) }
     private fun toggle(label: String,key: String,default: Boolean=false) {
         content.addView(Switch(this).apply {
             text=label;isChecked=settings.bool(key,default);setPadding(0,14,0,14)
-            setOnCheckedChangeListener { _, value -> settings.set(key,value);showSettings() }
+            setOnCheckedChangeListener { _, value -> if(settings.bool(key,default)!=value)settings.set(key,value) }
         })
     }
     private fun slider(label: String,key: String,min: Int,max: Int,default: Int,unit: String=if(key=="size")"sp" else "dp") {
@@ -37,15 +34,16 @@ class MainActivity: Activity() {
             })
         })
     }
-    private fun choice(title: String,labels: Array<String>,selected: Int,save: (Int)->Unit) {
+    private fun choice(title: String,labels: Array<String>,selected: Int,refresh: Boolean=true,save: (Int)->Unit) {
         AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(labels,selected) { dialog,n->
-            save(n);dialog.dismiss();showSettings()
+            if(n!=selected)save(n)
+            dialog.dismiss()
+            if(n!=selected && refresh)showSettings()
         }.setNegativeButton("戻る",null).show()
     }
     private fun showSettings() {
-        val y=scroll?.scrollY ?: savedScroll
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
-        val next=ScrollView(this).apply { addView(content) };scroll=next;setContentView(next)
+        setContentView(ScrollView(this).apply { addView(content) })
         fun section(label: String) { content.addView(text(label,22f)) }
         section("一般設定")
         button(if(settings.bool("enabled"))"表示を停止" else "表示を開始") {
@@ -80,10 +78,10 @@ class MainActivity: Activity() {
             }
         }
         button("時計・電池の色") {
-            choice("時計・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { settings.set("color",it) }
+            choice("時計・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0),refresh=false) { settings.set("color",it) }
         }
         toggle("全画面のときだけ","fullscreen")
-        if(settings.bool("fullscreen"))content.addView(text("ステータスバー非表示時に表示。判定不能時は表示を維持します。"))
+        content.addView(text("ON時はステータスバー非表示で表示。判定不能時は表示を維持します。"))
         if(settings.bool("clock",true)) {
             slider("時計サイズ","size",10,28,14)
             slider("時計の横位置","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
@@ -99,20 +97,19 @@ class MainActivity: Activity() {
         toggle("ナビバー着色","navbar_enabled")
         toggle("上部バーにも同じ色を適用","navbar_unified")
         toggle("Recentsでは着色しない","navbar_recents_off")
-        if(!settings.navbarEnabled())content.addView(text("着色OFF中は下の2設定を保持しますが適用しません。"))
-        if(settings.bool("navbar_recents_off"))content.addView(text("一部端末ではHomeも無着色になります。判定不能時は着色を維持します。"))
+        content.addView(text("着色OFF中も下の2設定を保持しますが適用しません。"))
+        content.addView(text("Recents停止をONにすると一部端末ではHomeも無着色。判定不能時は着色を維持します。"))
         content.addView(text("固定色優先、それ以外は自動推定。明るい色ではボタンの視認性に注意。"))
         section("ラウンドコーナー")
         toggle("上の角丸","top");toggle("下の角丸","bottom")
         slider("角丸半径","radius",0,64,18)
-        if(settings.defaultMask()==0)content.addView(text("上下OFF中は半径を保持しますが適用しません。"))
+        content.addView(text("上下OFF中は半径を保持しますが適用しません。"))
         section("アプリ別設定")
         button(if(OverlayService.usageAllowed(this))"使用状況へのアクセス：許可済み" else "使用状況へのアクセス：未許可") {
             startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS))
         }
         if(!OverlayService.usageAllowed(this))content.addView(text("未許可でも設定は編集できますが、前面アプリへ適用されません。"))
         button("アプリ別設定") { chooseApp() }
-        next.post { if(scroll===next)next.scrollTo(0,y) }
     }
     internal fun refreshForTest()=showSettings()
     private fun showDetails() {
