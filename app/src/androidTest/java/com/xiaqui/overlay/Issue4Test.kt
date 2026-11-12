@@ -110,7 +110,13 @@ class Issue4Test {
             main { settings.setRule(ctx.packageName,mode) }
             waitFor("mode $mode settled") {
                 val state=OverlayService.runtime
-                state!=null && state.foreground==ctx.packageName && state.bars.known && state.bars.top>0 && state.offsets==(0..3).map { Policy.cornerOffset(it,mode,state.bars) }
+                state!=null && state.bars.known && state.bars.top>0 &&
+                    // NORMAL now removes the last per-app rule. With no rules left,
+                    // foreground polling correctly stops and foreground becomes null.
+                    // The next non-default mode must restart tracking.
+                    (if(mode==Policy.NORMAL)state.foreground==null
+                     else state.foreground==ctx.packageName) &&
+                    state.offsets==(0..3).map { Policy.cornerOffset(it,mode,state.bars) }
             }
             android.os.SystemClock.sleep(500)
             val b=OverlayService.runtime!!.bars
