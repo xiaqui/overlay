@@ -160,6 +160,13 @@ class MainActivity: Activity() {
         val pm=packageManager
         val packages=pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0)
             .map { it.activityInfo.packageName }.toMutableSet()
+        // Home replacements (including Xperia Home) may not expose a LAUNCHER activity.
+        packages.addAll(pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0)
+            .map { it.activityInfo.packageName })
+        // Some Xperia builds do not return the stock home through the above query.
+        for(pkg in listOf("com.sonyericsson.home","com.sonymobile.home")) {
+            if(runCatching { pm.getApplicationInfo(pkg,0) }.isSuccess)packages.add(pkg)
+        }
         packages.addAll(configuredPackages().filter { runCatching { pm.getApplicationInfo(it,0) }.isSuccess })
         val labels=packages.associateWith { pkg->runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg,0)).toString() }.getOrDefault(pkg) }
         val configured=configuredPackages()
