@@ -9,12 +9,13 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   build:
     # One-shot signed build for the explicit PR26 responsiveness restore merge.
     # Other pushes remain inert; workflow_dispatch is still available.
-    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'overlay-ui-reflow-delivery-20261113') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'overlay-smooth-artifact-report-20261113') }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -83,6 +84,13 @@ jobs:
           path: delivery/
           retention-days: 3
           if-no-files-found: error
+      - name: Report signed artifact run to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/37/comments" \
+            -f body="Overlay 0.10.0 signed build run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID . Artifact: Overlay-signed (run source: $GITHUB_SHA)."
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/overlay-signing.jks"

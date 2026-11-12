@@ -62,12 +62,22 @@ class MainActivity: Activity() {
         button("確認テスト") { startActivity(Intent(this,PreviewActivity::class.java)) }
         button("詳細設定／マニュアル") { showDetails() }
         section("ステータスバー")
+        button("時計・電池の色") {
+            choice("時計・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0),refresh=false) { settings.set("color",it) }
+        }
+        toggle("全画面のときだけ","fullscreen")
+        content.addView(text("ON時はステータスバー非表示で表示。判定不能時は表示を維持します。"))
         val clockPosition=if(!settings.bool("clock",true))2 else if(settings.clockOnLeft())1 else 0
         button("時計の配置："+arrayOf("右","左","なし")[clockPosition]) {
             choice("時計の配置",arrayOf("右","左","なし"),clockPosition) {
                 if(it==2)settings.set("clock",false)
                 else { settings.set("clock_left",it==1);settings.set("clock",true) }
             }
+        }
+        if(settings.bool("clock",true)) {
+            slider("時計サイズ","size",10,28,14)
+            slider("時計の横位置","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
+            slider("時計の縦位置","y",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
         }
         val directions=arrayOf("横型・端子右","横型・端子左","縦型・端子上","なし")
         val batteryPosition=if(settings.bool("battery",true))settings.batteryDirection() else 3
@@ -76,16 +86,6 @@ class MainActivity: Activity() {
                 if(it==3)settings.set("battery",false)
                 else { settings.setBatteryDirection(it);settings.set("battery",true) }
             }
-        }
-        button("時計・電池の色") {
-            choice("時計・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0),refresh=false) { settings.set("color",it) }
-        }
-        toggle("全画面のときだけ","fullscreen")
-        content.addView(text("ON時はステータスバー非表示で表示。判定不能時は表示を維持します。"))
-        if(settings.bool("clock",true)) {
-            slider("時計サイズ","size",10,28,14)
-            slider("時計の横位置","x",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,4)
-            slider("時計の縦位置","y",Settings.MIN_OFFSET_DP,Settings.MAX_OFFSET_DP,0)
         }
         if(settings.bool("battery",true)) {
             slider("電池サイズ","battery_size",10,40,settings.batterySize(),"sp")
