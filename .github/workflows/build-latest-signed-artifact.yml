@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   build:
@@ -84,13 +83,10 @@ jobs:
           path: delivery/
           retention-days: 3
           if-no-files-found: error
-      - name: Report signed artifact run to PR
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Report signed artifact in job summary
         run: |
-          set -euo pipefail
-          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/37/comments" \
-            -f body="Overlay 0.10.0 signed build run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID . Artifact: Overlay-signed (run source: $GITHUB_SHA)."
+          printf 'Signed APK artifact: [Overlay-signed](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Source SHA: %s\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/overlay-signing.jks"
