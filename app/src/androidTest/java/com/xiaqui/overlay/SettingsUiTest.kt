@@ -72,13 +72,47 @@ class SettingsUiTest {
         } finally { if(!activity.isFinishing)inst.runOnMainSync { activity.finish() } }
     }
 
-    @Test fun explicitNormalAndNoneCountAsConfiguredWithoutMutation() {
+    @Test fun returningAllAppRulesToDefaultsRemovesConfiguredMarker() {
         val s=Settings(InstrumentationRegistry.getInstrumentation().targetContext)
+        val pkg="test.default.reset"
         try {
-            s.setRule("normal.app",Policy.NORMAL);s.setNavbarNone("hidden.app")
-            val before=s.prefs.all.toMap()
-            assertTrue(s.configuredPackages().containsAll(listOf("normal.app","hidden.app")))
-            assertEquals(before,s.prefs.all)
+            s.setRule(pkg,Policy.TOP_INSIDE)
+            s.setDisplayRule(pkg,Policy.DISPLAY_BOTH)
+            s.setNavbarNone(pkg)
+            assertTrue(s.configuredPackages().contains(pkg))
+            s.setRule(pkg,Policy.NORMAL)
+            assertTrue("other overrides still count",s.configuredPackages().contains(pkg))
+            s.setDisplayRule(pkg,Policy.DISPLAY_AUTO)
+            s.setNavbarColor(pkg,null)
+            assertFalse("all defaults must remove configured status",s.configuredPackages().contains(pkg))
+            assertFalse(s.prefs.contains("corner2:$pkg"))
+            assertFalse(s.prefs.contains("display:$pkg"))
+            assertFalse(s.prefs.contains("navbar:$pkg"))
+            assertFalse(s.prefs.contains("navbarMode:$pkg"))
+            s.setNavbarNone(pkg)
+            assertTrue("explicit navbar NONE remains configured",s.configuredPackages().contains(pkg))
         } finally { s.prefs.edit().clear().commit() }
+    }
+
+    @Test fun homeCategoryAppsAppearInAppPicker() {
+        val inst=InstrumentationRegistry.getInstrumentation()
+        val ctx=inst.targetContext
+        val pm=ctx.packageManager
+        val homePackages=pm.queryIntentActivities(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0
+        ).map { it.activityInfo.packageName }.toSet()
+        val s=Settings(ctx)
+        s.set("enabled",false)
+        val activity=inst.startActivitySync(
+            Intent(ctx,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        ) as MainActivity
+        try {
+            val packages=activity.appEntries().map { it.first }.toSet()
+            assertTrue("All HOME handlers must appear in app picker",packages.containsAll(homePackages))
+            for(pkg in listOf("com.sonyericsson.home","com.sonymobile.home")) {
+                if(runCatching { pm.getApplicationInfo(pkg,0) }.isSuccess)
+                    assertTrue("Installed Xperia Home must appear: $pkg",packages.contains(pkg))
+            }
+        } finally { inst.runOnMainSync { activity.finish() } }
     }
 }
