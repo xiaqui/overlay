@@ -6,6 +6,7 @@ import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -37,6 +38,13 @@ class SettingsUiTest {
             assertTrue(contains("時計・電池の色"));assertTrue(contains("時計サイズ: 19"));assertTrue(contains("電池サイズ: 31"))
             assertTrue("Navbar children stay visible while master is OFF",contains("上部バーにも同じ色を適用"))
             assertTrue("radius stays visible while both masks are OFF",contains("角丸半径: 29"))
+            val rootBeforeToggle=activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
+            val navbarSwitch=views(activity.window.decorView).filterIsInstance<Switch>().first { it.text=="ナビバー着色" }
+            inst.runOnMainSync { navbarSwitch.isChecked=true };inst.waitForIdleSync()
+            assertSame("switch changes do not replace ScrollView",rootBeforeToggle,activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0))
+            assertTrue(s.bool("navbar_enabled"))
+            inst.runOnMainSync { navbarSwitch.isChecked=false };inst.waitForIdleSync()
+            assertFalse(s.bool("navbar_enabled"))
             assertTrue(contains("上下OFF中は半径を保持しますが適用しません。"))
             assertTrue(s.bool("navbar_unified"));assertEquals(-17,s.offset("battery_x",0));assertEquals(123,s.batteryAspect())
             s.set("clock",false);s.set("battery",false);rebuild()
@@ -47,7 +55,7 @@ class SettingsUiTest {
             assertTrue(contains("時計の配置：左"));assertTrue(contains("電池の配置：横型・端子左"))
             val scroll=views(activity.window.decorView).filterIsInstance<ScrollView>().first()
             inst.runOnMainSync { scroll.scrollTo(0,100) };inst.waitForIdleSync();rebuild()
-            assertEquals(100,views(activity.window.decorView).filterIsInstance<ScrollView>().first().scrollY)
+            assertEquals("PR26 behavior: full refresh starts at the top",0,views(activity.window.decorView).filterIsInstance<ScrollView>().first().scrollY)
         } finally { inst.runOnMainSync { activity.finish() };s.prefs.edit().clear().commit() }
     }
 
