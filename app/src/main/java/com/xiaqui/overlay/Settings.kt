@@ -46,7 +46,13 @@ class Settings(context: Context) {
     fun set(key: String,value: Boolean) { prefs.edit().putBoolean(key,value).apply() }
     fun set(key: String,value: Int) { prefs.edit().putInt(key,value).apply() }
     fun rule(pkg: String)=Policy.mode(number("corner2:$pkg",Policy.NORMAL))
-    fun setRule(pkg: String,mode: Int) { prefs.edit().putInt("corner2:$pkg",Policy.mode(mode)).apply() }
+    fun setRule(pkg: String,mode: Int) {
+        prefs.edit().apply {
+            // Normal is the default; do not retain an explicit exception in the picker.
+            if(Policy.mode(mode)==Policy.NORMAL)remove("corner2:$pkg")
+            else putInt("corner2:$pkg",Policy.mode(mode))
+        }.apply()
+    }
     fun displayRule(pkg: String)=Policy.displayRule(number("display:$pkg",Policy.DISPLAY_AUTO))
     fun setDisplayRule(pkg: String,value: Int) {
         prefs.edit().apply {
