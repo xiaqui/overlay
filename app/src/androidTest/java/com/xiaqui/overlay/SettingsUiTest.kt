@@ -1,6 +1,8 @@
 package com.xiaqui.overlay
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.ParcelFileDescriptor
@@ -13,6 +15,8 @@ import android.widget.Switch
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -147,6 +151,45 @@ class SettingsUiTest {
             inst.runOnMainSync { view.performClick() };inst.waitForIdleSync()
             assertTrue(activity.isFinishing)
         } finally { if(!activity.isFinishing)inst.runOnMainSync { activity.finish() } }
+    }
+
+    @Test fun headingStateSurvivesRotationWhileOverlayIsStopped() {
+        val inst=InstrumentationRegistry.getInstrumentation();val ctx=inst.targetContext
+        val prefs=ctx.getSharedPreferences("overlay",0)
+        prefs.edit().clear().putBoolean("navbar_unified",true).putBoolean("bottom",true).commit()
+        val original=inst.startActivitySync(Intent(ctx,MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+        fun resumed()=ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+            .filterIsInstance<MainActivity>().firstOrNull()
+        val start=original.resources.configuration.orientation
+        val target=if(start==Configuration.ORIENTATION_LANDSCAPE)Configuration.ORIENTATION_PORTRAIT else Configuration.ORIENTATION_LANDSCAPE
+        try {
+            inst.runOnMainSync {
+                original.requestedOrientation=if(target==Configuration.ORIENTATION_LANDSCAPE)
+                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            var verified=false
+            val end=SystemClock.elapsedRealtime()+10000
+            while(!verified && SystemClock.elapsedRealtime()<end) {
+                inst.runOnMainSync {
+                    val activity=resumed()
+                    if(activity!=null && activity.resources.configuration.orientation==target) {
+                        val switches=views(activity.window.decorView).filterIsInstance<Switch>().associateBy { it.text.toString() }
+                        assertFalse(switches.getValue("オーバーレイ").isChecked)
+                        assertTrue(switches.getValue("ラウンドコーナー").isChecked)
+                        assertTrue(switches.getValue("上部バーにも同じ色を適用").isChecked)
+                        assertFalse(switches.getValue("上部バーにも同じ色を適用").isEnabled)
+                        verified=true
+                    }
+                }
+                if(!verified)SystemClock.sleep(100)
+            }
+            assertTrue("settings show saved values after rotation",verified)
+            assertEquals(2,Settings(ctx).defaultMask())
+        } finally {
+            inst.runOnMainSync { (resumed() ?: original).finish() }
+            inst.waitForIdleSync();prefs.edit().clear().commit()
+        }
     }
 
     @Test fun returningAllAppRulesToDefaultsRemovesConfiguredMarker() {
