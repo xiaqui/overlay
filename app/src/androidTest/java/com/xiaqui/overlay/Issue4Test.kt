@@ -233,6 +233,23 @@ class Issue4Test {
             OverlayService.runtime?.statusElements==Policy.STATUS_CLOCK
         }
     }
+    @Test fun displayExceptionStartsTrackingWhenUsageAccessGrantedInAlwaysMode() {
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS ignore")
+        launch("normal")
+        main {
+            settings.set("fullscreen",false)
+            settings.setDisplayRule(ctx.packageName,Policy.DISPLAY_NONE)
+            settings.set("enabled",true)
+            OverlayService.start(ctx)
+        }
+        waitFor("no permission, use global default without observing bars") {
+            OverlayService.runtime?.let { it.foreground==null && it.visible && !it.bars.known }==true
+        }
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS allow")
+        waitFor("permission grant applies the hide rule without restarting the service") {
+            OverlayService.runtime?.let { it.foreground==ctx.packageName && !it.visible && it.statusElements==0 }==true
+        }
+    }
     @Test fun legacyPrefsMigrateOnceWithoutDestroyingOriginals() {
         main {
             settings.prefs.edit().clear().putInt("app:none",0).putInt("app:top",1).putInt("app:bottom",2).putInt("app:both",3).putBoolean("top",true).commit()

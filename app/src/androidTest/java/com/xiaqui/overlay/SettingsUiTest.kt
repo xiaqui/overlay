@@ -3,6 +3,8 @@ package com.xiaqui.overlay
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ScrollView
@@ -47,7 +49,7 @@ class SettingsUiTest {
             assertTrue("status menu order",fullscreenIndex in 0 until colorIndex && colorIndex<clockIndex && clockIndex<clockSliderIndex && clockSliderIndex<batteryIndex && batteryIndex<batterySliderIndex)
             assertTrue(contains("時計・電池の色"));assertTrue(contains("時計サイズ: 19"));assertTrue(contains("電池サイズ: 31"))
             assertTrue("Navbar children stay visible while master is OFF",contains("上部バーにも同じ色を適用"))
-            assertTrue("radius stays visible while both masks are OFF",contains("角丸半径: 29"))
+            assertTrue(contains("角丸半径: 29"))
             assertTrue(s.fullscreenOnly());assertFalse(s.prefs.contains("fullscreen"))
             assertTrue(contains("以前の設定：上の角丸のみ有効"));assertEquals(1,s.defaultMask())
             assertTrue(labels().indexOfFirst { it.startsWith("使用状況へのアクセス：") } in
@@ -79,6 +81,7 @@ class SettingsUiTest {
             assertFalse(unified.isEnabled);assertFalse(recents.isEnabled)
             inst.runOnMainSync { corner.isChecked=false;fullscreen.isChecked=false }
             assertEquals(0,s.defaultMask());assertFalse(radius.isEnabled);assertEquals(29,s.number("radius",18))
+            assertTrue("radius stays visible while both masks are OFF",contains("角丸半径: 29"))
             inst.runOnMainSync { corner.isChecked=true }
             assertEquals(3,s.defaultMask());assertTrue(radius.isEnabled)
             assertFalse(Settings(ctx).fullscreenOnly())
@@ -93,6 +96,44 @@ class SettingsUiTest {
             inst.runOnMainSync { scroll.scrollTo(0,100) };inst.waitForIdleSync();rebuild()
             assertEquals("PR26 behavior: full refresh starts at the top",0,views(activity.window.decorView).filterIsInstance<ScrollView>().first().scrollY)
         } finally { inst.runOnMainSync { activity.finish() };s.prefs.edit().clear().commit() }
+    }
+
+    @Test fun headingStartsStopsAndResumesWithoutResettingChildSettings() {
+        val inst=InstrumentationRegistry.getInstrumentation()
+        val ctx=inst.targetContext
+        fun shell(command: String)=ParcelFileDescriptor.AutoCloseInputStream(inst.uiAutomation.executeShellCommand(command))
+            .bufferedReader().use { it.readText().trim() }
+        fun waitFor(message: String,predicate: ()->Boolean) {
+            val end=SystemClock.elapsedRealtime()+8000L
+            while(!predicate() && SystemClock.elapsedRealtime()<end)SystemClock.sleep(100)
+            assertTrue(message,predicate())
+        }
+        val prefs=ctx.getSharedPreferences("overlay",0)
+        prefs.edit().clear().commit()
+        shell("appops set ${ctx.packageName} SYSTEM_ALERT_WINDOW allow")
+        val activity=inst.startActivitySync(Intent(ctx,MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+        try {
+            val all=views(activity.window.decorView).filterIsInstance<Switch>()
+            val master=all.single { it.text=="オーバーレイ" }
+            val corner=all.single { it.text=="ラウンドコーナー" }
+            inst.runOnMainSync { corner.isChecked=true;master.isChecked=true }
+            waitFor("start applies settings edited while stopped") { OverlayService.runtime?.locations?.size==4 }
+            inst.runOnMainSync { master.isChecked=false }
+            waitFor("stop removes service windows") { OverlayService.runtime==null }
+            assertTrue(corner.isEnabled && corner.isChecked)
+            assertEquals(3,Settings(ctx).defaultMask())
+            inst.runOnMainSync { master.isChecked=true }
+            waitFor("restart uses same settings") { OverlayService.runtime?.locations?.size==4 }
+        } finally {
+            inst.runOnMainSync {
+                prefs.edit().putBoolean("enabled",false).apply()
+                ctx.stopService(Intent(ctx,OverlayService::class.java))
+                activity.finish()
+            }
+            inst.waitForIdleSync()
+            prefs.edit().clear().commit()
+        }
     }
 
     @Test fun confirmationTestRunsWhiteThenBlackAndReturns() {

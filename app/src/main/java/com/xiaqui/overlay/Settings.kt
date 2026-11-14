@@ -92,6 +92,7 @@ class Settings(context: Context) {
         prefs.edit().remove("navbar:$pkg").putInt("navbarMode:$pkg",NAVBAR_NONE).apply()
     }
     fun hasRules()=navbarEnabled() || prefs.all.keys.any { it.startsWith("corner2:") || it.startsWith("display:") }
+    fun hasDisplayRules()=prefs.all.keys.any { it.startsWith("display:") }
     fun fullscreenOnly()=bool("fullscreen",FULLSCREEN_DEFAULT)
     fun needsBars()=navbarEnabled() || fullscreenOnly() || prefs.all.any { (k,v)->k.startsWith("corner2:") && v is Int && v in Policy.TOP_INSIDE..Policy.BOTH_INSIDE }
     fun defaultMask()=(if(bool("top"))1 else 0) or (if(bool("bottom"))2 else 0)

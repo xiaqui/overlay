@@ -493,6 +493,7 @@ class NavbarTest {
     @Test fun actualBandAppSwitchFiveModesOffFullscreenRotationAndButtons() {
         launch()
         main {
+            settings.set("fullscreen",false) // Preserve the window-count fixture's no-probe baseline.
             settings.set("top",true);settings.set("bottom",true);settings.set("radius",18)
             settings.set("color",2) // Overlay固有の濃灰で、標準status iconと分けて実画素を確認する。
             settings.setNavbarColor(ctx.packageName,red);settings.set("navbar_auto",true)

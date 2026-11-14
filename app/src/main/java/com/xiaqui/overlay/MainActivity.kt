@@ -22,8 +22,8 @@ class MainActivity: Activity() {
     override fun onStart() { super.onStart();settings.prefs.registerOnSharedPreferenceChangeListener(enabledListener) }
     override fun onStop() { settings.prefs.unregisterOnSharedPreferenceChangeListener(enabledListener);super.onStop() }
     private fun text(value: String,size: Float=14f) = TextView(this).apply { text=value;textSize=size;setPadding(0,12,0,8) }
-    private fun button(label: String,action: ()->Unit)=Button(this).apply {
-        text=label;setOnClickListener { action() };content.addView(this)
+    private fun button(label: String,action: (() -> Unit)?=null)=Button(this).apply {
+        text=label;action?.let { setOnClickListener { _->it() } };content.addView(this)
     }
     private fun switchRow(label: String,checked: Boolean,heading: Boolean=false,change: (Boolean)->Unit)=Switch(this).apply {
         text=label;isChecked=checked
@@ -69,8 +69,8 @@ class MainActivity: Activity() {
         setContentView(ScrollView(this).apply { addView(content) })
         fun section(label: String) { content.addView(text(label,22f)) }
         overlaySwitch=switchRow("オーバーレイ",settings.bool("enabled"),heading=true) { enabled->
-            if(enabled==settings.bool("enabled"))Unit
-            else if(enabled && !SystemSettings.canDrawOverlays(this)) {
+            if(enabled==settings.bool("enabled"))return@switchRow
+            if(enabled && !SystemSettings.canDrawOverlays(this)) {
                 overlaySwitch?.isChecked=false
                 startActivity(Intent(SystemSettings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName")))
             } else {
@@ -93,7 +93,7 @@ class MainActivity: Activity() {
         val clockLabels=arrayOf("右","左","なし")
         fun clockLabel(i: Int)="時計の配置："+clockLabels[i]
         var clockPosition=if(!settings.bool("clock",true))2 else if(settings.clockOnLeft())1 else 0
-        val clockButton=button(clockLabel(clockPosition)) {}
+        val clockButton=button(clockLabel(clockPosition))
         clockButton.setOnClickListener {
             choice("時計の配置",clockLabels,clockPosition) {
                 settings.prefs.edit().apply {
@@ -112,7 +112,7 @@ class MainActivity: Activity() {
         val directions=arrayOf("横型・端子右","横型・端子左","縦型・端子上","なし")
         var batteryPosition=if(settings.bool("battery",true))settings.batteryDirection() else 3
         val batteryGroup=group()
-        val batteryButton=button("電池の配置："+directions[batteryPosition]) {}
+        val batteryButton=button("電池の配置："+directions[batteryPosition])
         batteryButton.setOnClickListener {
             choice("電池の配置",directions,batteryPosition) {
                 settings.prefs.edit().apply {
