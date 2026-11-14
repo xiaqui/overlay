@@ -236,7 +236,10 @@ class OverlayService : Service() {
                 updateForeground();updateStatusVisibility();updateCorners()
                 settings.prefs.edit().putString("diagnostic",if(type==2006)"旧方式 2006（バーとの重なりは機種依存）" else "互換方式 2038（システムバーより背面）").apply()
                 handler.post(minute)
-                if(settings.needsBars() || (settings.hasRules() && usageAllowed(this)))handler.post(poll)
+                // Display exceptions apply even without bar observation. Keep the existing
+                // poll alive for these rules so an external Usage Access grant can take effect.
+                if(settings.needsBars() || settings.hasDisplayRules() ||
+                    (settings.hasRules() && usageAllowed(this)))handler.post(poll)
                 return
             } catch (_: LegacyWindowRejected) {
                 legacyTypeRejected=true
@@ -295,7 +298,7 @@ class OverlayService : Service() {
     }
     private fun updateStatusVisibility() {
         val exception=foreground?.let { settings.displayRule(it) } ?: Policy.DISPLAY_AUTO
-        val elements=Policy.statusElements(settings.bool("fullscreen"),exception,bars,globalStatusElements())
+        val elements=Policy.statusElements(settings.fullscreenOnly(),exception,bars,globalStatusElements())
         syncStatusWindows(elements)
         statusViews.forEach { it.visibility=View.VISIBLE }
         publishRuntime()
