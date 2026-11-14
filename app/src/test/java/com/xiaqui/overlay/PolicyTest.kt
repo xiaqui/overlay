@@ -46,28 +46,18 @@ class PolicyTest {
         assertTrue(Policy.statusVisible(true,0,BarState(true,top=0,bottom=48)))
         assertTrue(Policy.statusVisible(true,0,BarState()))
     }
-    @Test fun appExceptionsDoNotChangeAlwaysMode() {
-        assertTrue(Policy.statusVisible(true,1,BarState(true,top=24)))
-        assertFalse(Policy.statusVisible(true,2,BarState(true)))
-        assertTrue(Policy.statusVisible(true,3,BarState(true,top=24)))
-        assertTrue(Policy.statusVisible(true,4,BarState(true,top=24)))
-        for(e in 0..4)assertTrue(Policy.statusVisible(false,e,BarState(true,top=24)))
-    }
-    @Test fun fullscreenExceptionsSelectElementsWithoutOverridingGlobalOff() {
+    @Test fun displayRulesCoverAllGlobalElementsAndFullscreenModes() {
+        for(global in 0..3)for(only in listOf(false,true))for(hidden in listOf(false,true)) {
+            val bars=BarState(true,top=if(hidden)0 else 24)
+            assertEquals(if(!only || hidden)global else 0,Policy.statusElements(only,Policy.DISPLAY_AUTO,bars,global))
+            assertEquals(global,Policy.statusElements(only,Policy.DISPLAY_ALWAYS,bars,global))
+            assertEquals(0,Policy.statusElements(only,Policy.DISPLAY_NONE,bars,global))
+        }
+        assertEquals(listOf(0,1,2,0,0),(0..4).map(Policy::displayRule))
         assertEquals(Policy.DISPLAY_AUTO,Policy.displayRule(-1))
         assertEquals(Policy.DISPLAY_NONE,Policy.displayRule(999))
-        for(rule in 0..4)assertEquals(rule,Policy.displayRule(rule))
-        val normal=BarState(true,top=24)
-        val hidden=BarState(true,top=0)
-        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_AUTO,normal,3))
-        assertEquals(3,Policy.statusElements(true,Policy.DISPLAY_AUTO,hidden,3))
-        assertEquals(3,Policy.statusElements(true,Policy.DISPLAY_BOTH,normal,3))
-        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_NONE,hidden,3))
-        assertEquals(Policy.STATUS_CLOCK,Policy.statusElements(true,Policy.DISPLAY_CLOCK,normal,3))
-        assertEquals(Policy.STATUS_BATTERY,Policy.statusElements(true,Policy.DISPLAY_BATTERY,normal,3))
-        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_CLOCK,normal,Policy.STATUS_BATTERY))
-        assertEquals(0,Policy.statusElements(true,Policy.DISPLAY_BATTERY,normal,Policy.STATUS_CLOCK))
-        for(rule in 0..4)assertEquals(Policy.STATUS_CLOCK,Policy.statusElements(false,rule,normal,Policy.STATUS_CLOCK))
+        assertEquals(3,Policy.statusElements(true,Policy.DISPLAY_AUTO,BarState(),3))
+        assertEquals(0,Policy.statusElements(false,Policy.DISPLAY_NONE,BarState(),3))
     }
     @Test fun supportedWindowTypes() {
         for(sdk in 23..25)assertEquals(listOf(2006),Policy.windowTypes(sdk,true))

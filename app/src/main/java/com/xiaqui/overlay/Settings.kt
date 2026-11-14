@@ -23,6 +23,15 @@ class Settings(context: Context) {
             // Keep original app:* values for downgrade; one atomic, idempotent migration.
             editor.putInt("cornerSchema",2).commit()
         }
+        if(!prefs.getBoolean("displaySchema3",false)) {
+            val editor=prefs.edit()
+            for((key,value) in prefs.all)if(key.startsWith("display:") && value is Int) {
+                val rule=Policy.displayRule(value)
+                if(rule==Policy.DISPLAY_AUTO)editor.remove(key)
+                else if(value!=rule)editor.putInt(key,rule)
+            }
+            editor.putBoolean("displaySchema3",true).commit()
+        }
     }
     fun bool(key: String,default: Boolean=false)=prefs.getBoolean(key,default)
     fun number(key: String,default: Int)=prefs.getInt(key,default)
@@ -56,8 +65,9 @@ class Settings(context: Context) {
     fun displayRule(pkg: String)=Policy.displayRule(number("display:$pkg",Policy.DISPLAY_AUTO))
     fun setDisplayRule(pkg: String,value: Int) {
         prefs.edit().apply {
-            if(value==Policy.DISPLAY_AUTO)remove("display:$pkg")
-            else putInt("display:$pkg",value.coerceIn(Policy.DISPLAY_BOTH,Policy.DISPLAY_BATTERY))
+            val rule=Policy.displayRule(value)
+            if(rule==Policy.DISPLAY_AUTO)remove("display:$pkg")
+            else putInt("display:$pkg",rule)
         }.apply()
     }
     fun navbarEnabled()=bool("navbar_enabled")
@@ -82,11 +92,16 @@ class Settings(context: Context) {
         prefs.edit().remove("navbar:$pkg").putInt("navbarMode:$pkg",NAVBAR_NONE).apply()
     }
     fun hasRules()=navbarEnabled() || prefs.all.keys.any { it.startsWith("corner2:") || it.startsWith("display:") }
-    fun needsBars()=navbarEnabled() || bool("fullscreen") || prefs.all.any { (k,v)->k.startsWith("corner2:") && v is Int && v in Policy.TOP_INSIDE..Policy.BOTH_INSIDE }
+    fun fullscreenOnly()=bool("fullscreen",FULLSCREEN_DEFAULT)
+    fun needsBars()=navbarEnabled() || fullscreenOnly() || prefs.all.any { (k,v)->k.startsWith("corner2:") && v is Int && v in Policy.TOP_INSIDE..Policy.BOTH_INSIDE }
     fun defaultMask()=(if(bool("top"))1 else 0) or (if(bool("bottom"))2 else 0)
+    fun setCornersEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("top",enabled).putBoolean("bottom",enabled).apply()
+    }
 
     companion object {
         const val MIN_OFFSET_DP=-64
+        const val FULLSCREEN_DEFAULT=true
         const val MAX_OFFSET_DP=100
         const val NAVBAR_AUTO=0
         const val NAVBAR_FIXED=1

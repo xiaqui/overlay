@@ -8,13 +8,11 @@ object Policy {
     const val STATUS_CLOCK=1
     const val STATUS_BATTERY=2
     const val DISPLAY_AUTO=0
-    const val DISPLAY_BOTH=1
+    const val DISPLAY_ALWAYS=1
     const val DISPLAY_NONE=2
-    const val DISPLAY_CLOCK=3
-    const val DISPLAY_BATTERY=4
     fun displayRule(value: Int)=when {
-        value<DISPLAY_AUTO->DISPLAY_AUTO
-        value>DISPLAY_BATTERY->DISPLAY_NONE // Legacy reader treated every value above 2 as hide.
+        value<DISPLAY_AUTO || value==3 || value==4->DISPLAY_AUTO
+        value>DISPLAY_NONE->DISPLAY_NONE // Preserve old behavior for unrecognized high values.
         else->value
     }
     const val NONE=0
@@ -33,23 +31,15 @@ object Policy {
         if(corner<2)return CornerOffset(y=if(topInside && bars.known)bars.top.coerceAtLeast(0) else 0)
         return if(bottomInside)CornerOffset(x=(if(corner%2==0)bars.left else bars.right).coerceAtLeast(0),y=bars.bottom.coerceAtLeast(0)) else CornerOffset()
     }
-    // Exceptions only affect fullscreen-only mode; values 0..2 retain their original meanings.
     fun statusVisible(fullscreenOnly: Boolean,exception: Int,bars: BarState)=
-        !fullscreenOnly || when(exception) {
-            DISPLAY_BOTH,DISPLAY_CLOCK,DISPLAY_BATTERY->true
+        when(displayRule(exception)) {
+            DISPLAY_ALWAYS->true
             DISPLAY_NONE->false
-            else->!bars.known || bars.top==0
+            else->!fullscreenOnly || !bars.known || bars.top==0
         }
     fun statusElements(fullscreenOnly: Boolean,exception: Int,bars: BarState,global: Int): Int {
         val allowed=global and (STATUS_CLOCK or STATUS_BATTERY)
-        if(!fullscreenOnly)return allowed
-        return when(exception) {
-            DISPLAY_BOTH->allowed
-            DISPLAY_NONE->0
-            DISPLAY_CLOCK->allowed and STATUS_CLOCK
-            DISPLAY_BATTERY->allowed and STATUS_BATTERY
-            else->if(!bars.known || bars.top==0)allowed else 0
-        }
+        return if(statusVisible(fullscreenOnly,exception,bars))allowed else 0
     }
     fun batteryPercent(level: Int,scale: Int): Int =
         if(level<0 || scale<=0)-1 else (100L*level/scale).coerceIn(0L,100L).toInt()

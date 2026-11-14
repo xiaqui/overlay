@@ -427,6 +427,7 @@ class NavbarTest {
             settings.set("top",true);settings.set("bottom",true)
             settings.set("x",-10);settings.set("y",-6)
             settings.set("clock_left",false);settings.set("clock",true);settings.set("battery",true)
+            settings.set("fullscreen",false) // This is a placement test, not a visibility-policy test.
             settings.set("enabled",true);OverlayService.start(ctx)
         }
         waitFor("independent positions use two minimal status windows") {

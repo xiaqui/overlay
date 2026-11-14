@@ -295,7 +295,7 @@ class OverlayService : Service() {
     }
     private fun updateStatusVisibility() {
         val exception=foreground?.let { settings.displayRule(it) } ?: Policy.DISPLAY_AUTO
-        val elements=Policy.statusElements(settings.bool("fullscreen"),exception,bars,globalStatusElements())
+        val elements=Policy.statusElements(settings.fullscreenOnly(),exception,bars,globalStatusElements())
         syncStatusWindows(elements)
         statusViews.forEach { it.visibility=View.VISIBLE }
         publishRuntime()

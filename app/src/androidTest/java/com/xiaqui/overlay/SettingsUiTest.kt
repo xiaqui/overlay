@@ -6,6 +6,7 @@ import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -20,20 +21,21 @@ class SettingsUiTest {
 
     @Test fun reorderedSectionsAndSavedValuesRemainVisible() {
         val inst=InstrumentationRegistry.getInstrumentation();val ctx=inst.targetContext
-        val s=Settings(ctx);s.prefs.edit().clear().commit();s.set("enabled",false)
+        ctx.getSharedPreferences("overlay",0).edit().clear().commit()
+        val s=Settings(ctx);s.set("enabled",false)
         s.set("clock_left",true);s.set("clock",true);s.set("size",19);s.set("x",-13)
         s.setBatteryDirection(1);s.set("battery",true);s.set("battery_size",31);s.set("battery_aspect",123);s.set("battery_x",-17)
-        s.set("radius",29);s.set("top",false);s.set("bottom",false);s.set("navbar_enabled",false);s.set("navbar_unified",true)
+        s.set("radius",29);s.set("top",true);s.set("bottom",false);s.set("navbar_enabled",false);s.set("navbar_unified",true)
         val activity=inst.startActivitySync(Intent(ctx,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
-        fun labels()=views(activity.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }
+        fun labels()=views(activity.window.decorView).filterIsInstance<TextView>().filter { it.isShown }.map { it.text.toString() }
         fun contains(prefix: String)=labels().any { it.startsWith(prefix) }
         fun rebuild() { inst.runOnMainSync { activity.refreshForTest() };inst.waitForIdleSync() }
         try {
-            val headings=listOf("一般設定","ステータスバー","ナビゲーションバー","ラウンドコーナー","アプリ別設定")
+            val headings=listOf("オーバーレイ","ステータスバー補助","ナビゲーションバー着色","ラウンドコーナー","詳細設定")
             assertEquals(headings,labels().filter { it in headings }.distinct())
             assertFalse(contains("全体設定"));assertFalse(contains("上部情報"));assertFalse(contains("詳細／トラブル対応"))
             assertTrue(contains("重ねて表示："));assertTrue(contains("使用状況へのアクセス："))
-            assertTrue(contains("確認テスト"));assertTrue(contains("詳細設定／マニュアル"))
+            assertTrue(contains("確認テスト"));assertTrue(contains("マニュアルと診断"))
             assertTrue(contains("時計の配置：左"));assertTrue(contains("電池の配置：横型・端子左"))
             val statusLabels=labels()
             val colorIndex=statusLabels.indexOfFirst { it=="時計・電池の色" }
@@ -42,18 +44,44 @@ class SettingsUiTest {
             val clockSliderIndex=statusLabels.indexOfFirst { it.startsWith("時計サイズ:") }
             val batteryIndex=statusLabels.indexOfFirst { it.startsWith("電池の配置：") }
             val batterySliderIndex=statusLabels.indexOfFirst { it.startsWith("電池サイズ:") }
-            assertTrue("status menu order",colorIndex in 0 until fullscreenIndex && fullscreenIndex<clockIndex && clockIndex<clockSliderIndex && clockSliderIndex<batteryIndex && batteryIndex<batterySliderIndex)
+            assertTrue("status menu order",fullscreenIndex in 0 until colorIndex && colorIndex<clockIndex && clockIndex<clockSliderIndex && clockSliderIndex<batteryIndex && batteryIndex<batterySliderIndex)
             assertTrue(contains("時計・電池の色"));assertTrue(contains("時計サイズ: 19"));assertTrue(contains("電池サイズ: 31"))
             assertTrue("Navbar children stay visible while master is OFF",contains("上部バーにも同じ色を適用"))
             assertTrue("radius stays visible while both masks are OFF",contains("角丸半径: 29"))
+            assertTrue(s.fullscreenOnly());assertFalse(s.prefs.contains("fullscreen"))
+            assertTrue(contains("以前の設定：上の角丸のみ有効"));assertEquals(1,s.defaultMask())
+            assertTrue(labels().indexOfFirst { it.startsWith("使用状況へのアクセス：") } in
+                (labels().indexOf("ナビゲーションバー着色")+1) until labels().indexOf("ラウンドコーナー"))
+            assertEquals(listOf("アプリ別設定","マニュアルと診断"),labels().drop(labels().indexOf("詳細設定")+1))
+            fun switch(label: String)=views(activity.window.decorView).filterIsInstance<Switch>().single { it.text==label }
+            val unified=switch("上部バーにも同じ色を適用")
+            val recents=switch("Recentsでは着色しない")
+            val fullscreen=switch("全画面のときだけ")
+            val corner=switch("ラウンドコーナー")
+            val radius=views(activity.window.decorView).filterIsInstance<SeekBar>().last()
+            assertTrue(fullscreen.isChecked && fullscreen.isEnabled);assertFalse(switch("オーバーレイ").isChecked)
+            assertFalse(unified.isEnabled);assertFalse(recents.isEnabled)
+            assertFalse(unified.createAccessibilityNodeInfo().isEnabled)
+            assertTrue(corner.isChecked && radius.isEnabled)
             val rootBeforeToggle=activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
-            val navbarSwitch=views(activity.window.decorView).filterIsInstance<Switch>().first { it.text=="ナビバー着色" }
+            val navbarSwitch=switch("ナビゲーションバー着色")
+            val scrollBefore=rootBeforeToggle as ScrollView
+            inst.runOnMainSync { scrollBefore.scrollTo(0,100) }
+            val y=scrollBefore.scrollY
+            assertTrue(y>0)
             inst.runOnMainSync { navbarSwitch.isChecked=true };inst.waitForIdleSync()
             assertSame("switch changes do not replace ScrollView",rootBeforeToggle,activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0))
             assertTrue(s.bool("navbar_enabled"))
+            assertTrue(unified.isEnabled && unified.isChecked && recents.isEnabled)
+            assertEquals(y,scrollBefore.scrollY)
             inst.runOnMainSync { navbarSwitch.isChecked=false };inst.waitForIdleSync()
             assertFalse(s.bool("navbar_enabled"))
-            assertTrue(contains("上下OFF中は半径を保持しますが適用しません。"))
+            assertFalse(unified.isEnabled);assertFalse(recents.isEnabled)
+            inst.runOnMainSync { corner.isChecked=false;fullscreen.isChecked=false }
+            assertEquals(0,s.defaultMask());assertFalse(radius.isEnabled);assertEquals(29,s.number("radius",18))
+            inst.runOnMainSync { corner.isChecked=true }
+            assertEquals(3,s.defaultMask());assertTrue(radius.isEnabled)
+            assertFalse(Settings(ctx).fullscreenOnly())
             assertTrue(s.bool("navbar_unified"));assertEquals(-17,s.offset("battery_x",0));assertEquals(123,s.batteryAspect())
             s.set("clock",false);s.set("battery",false);rebuild()
             assertTrue(contains("時計の配置：なし"));assertTrue(contains("電池の配置：なし"))
@@ -85,7 +113,7 @@ class SettingsUiTest {
         val pkg="test.default.reset"
         try {
             s.setRule(pkg,Policy.TOP_INSIDE)
-            s.setDisplayRule(pkg,Policy.DISPLAY_BOTH)
+            s.setDisplayRule(pkg,Policy.DISPLAY_ALWAYS)
             s.setNavbarNone(pkg)
             assertTrue(s.configuredPackages().contains(pkg))
             s.setRule(pkg,Policy.NORMAL)
@@ -100,6 +128,32 @@ class SettingsUiTest {
             s.setNavbarNone(pkg)
             assertTrue("explicit navbar NONE remains configured",s.configuredPackages().contains(pkg))
         } finally { s.prefs.edit().clear().commit() }
+    }
+
+    @Test fun migrationPreservesSupportedRulesAndSavedFullscreenValues() {
+        val ctx=InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs=ctx.getSharedPreferences("overlay",0)
+        try {
+            for(saved in listOf(null,false,true)) {
+                val editor=prefs.edit().clear()
+                if(saved!=null)editor.putBoolean("fullscreen",saved)
+                for(i in 0..4)editor.putInt("display:migration.$i",i)
+                editor.putInt("corner2:migration.3",Policy.TOP_INSIDE)
+                    .putInt("navbarMode:migration.4",Settings.NAVBAR_NONE)
+                    .putBoolean("bottom",true).commit()
+                repeat(2) {
+                    val s=Settings(ctx)
+                    assertEquals(saved ?: true,s.fullscreenOnly())
+                    assertEquals(saved!=null,prefs.contains("fullscreen"))
+                    assertEquals(2,s.defaultMask())
+                    assertEquals(listOf(0,1,2,0,0),(0..4).map { s.displayRule("migration.$it") })
+                    for(i in listOf(0,3,4))assertFalse(prefs.contains("display:migration.$i"))
+                    assertEquals(Policy.TOP_INSIDE,s.rule("migration.3"))
+                    assertEquals(Settings.NAVBAR_NONE,s.navbarMode("migration.4"))
+                    assertEquals(setOf("migration.1","migration.2","migration.3","migration.4"),s.configuredPackages())
+                }
+            }
+        } finally { prefs.edit().clear().commit() }
     }
 
     @Test fun homeCategoryAppsAppearInAppPicker() {
