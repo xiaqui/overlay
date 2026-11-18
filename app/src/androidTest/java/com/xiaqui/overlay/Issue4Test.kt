@@ -104,13 +104,19 @@ class Issue4Test {
     }
     @Test fun fiveCornerModesActualPositionsRotationAndExceptions() {
         launch("normal");enable()
+        // Corner pixels require visible overlay even while system bars are shown.
+        // Fullscreen-only visibility is covered separately by normalTransparentFullscreenAndAppSwitch.
+        main { settings.set("fullscreen",false) }
+        waitFor("corner overlay visible for pixel checks") { OverlayService.runtime?.visible==true }
         waitFor("usage identifies app and bars") { OverlayService.runtime?.let { it.foreground==ctx.packageName && it.bars.known && it.bars.top>0 }==true }
         assertTrue("visible nav bar must be measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
         for(mode in Policy.NONE..Policy.BOTH_INSIDE) {
             main { settings.setRule(ctx.packageName,mode) }
             waitFor("mode $mode settled") {
                 val state=OverlayService.runtime
-                state!=null && state.bars.known && state.bars.top>0 &&
+                // NONE and NORMAL need no bar observer when fullscreen-only is off.
+                // Inside modes must reattach it before checking actual insets.
+                state!=null && (mode<=Policy.NORMAL || (state.bars.known && state.bars.top>0)) &&
                     // NORMAL now removes the last per-app rule. With no rules left,
                     // foreground polling correctly stops and foreground becomes null.
                     // The next non-default mode must restart tracking.
@@ -135,6 +141,7 @@ class Issue4Test {
         }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         waitFor("landscape observed") { ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE && OverlayService.runtime?.bars?.known==true }
+        main { settings.set("fullscreen",true) }
         bars("immersive",true);bars("normal",false)
         assertTrue("landscape nav measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE }
