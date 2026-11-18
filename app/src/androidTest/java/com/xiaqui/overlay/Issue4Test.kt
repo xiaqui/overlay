@@ -114,7 +114,9 @@ class Issue4Test {
             main { settings.setRule(ctx.packageName,mode) }
             waitFor("mode $mode settled") {
                 val state=OverlayService.runtime
-                state!=null && state.bars.known && state.bars.top>0 &&
+                // NONE and NORMAL need no bar observer when fullscreen-only is off.
+                // Inside modes must reattach it before checking actual insets.
+                state!=null && (mode<=Policy.NORMAL || (state.bars.known && state.bars.top>0)) &&
                     // NORMAL now removes the last per-app rule. With no rules left,
                     // foreground polling correctly stops and foreground becomes null.
                     // The next non-default mode must restart tracking.
