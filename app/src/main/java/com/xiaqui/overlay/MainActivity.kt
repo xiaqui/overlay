@@ -30,7 +30,7 @@ class MainActivity: Activity() {
         val density=resources.displayMetrics.density
         minHeight=(48*density).toInt()
         switchPadding=(12*density).toInt()
-        if(heading)textSize=22f
+        if(heading) { textSize=22f;setTextColor(android.graphics.Color.BLACK) }
         setOnCheckedChangeListener { _,value->change(value) }
         content.addView(this)
     }
@@ -67,7 +67,7 @@ class MainActivity: Activity() {
     private fun showSettings() {
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,18,24,24) }
         setContentView(ScrollView(this).apply { addView(content) })
-        fun section(label: String) { content.addView(text(label,22f)) }
+        fun section(label: String) { content.addView(text(label,22f).apply { setTextColor(android.graphics.Color.BLACK) }) }
         overlaySwitch=switchRow("オーバーレイ",settings.bool("enabled"),heading=true) { enabled->
             if(enabled==settings.bool("enabled"))return@switchRow
             if(enabled && !SystemSettings.canDrawOverlays(this)) {
@@ -83,7 +83,7 @@ class MainActivity: Activity() {
         }
         button("電池の最適化設定") { startActivity(Intent(SystemSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
         button("確認テスト") { startActivity(Intent(this,PreviewActivity::class.java)) }
-        section("ステータスバー補助")
+        section("ステータスバー情報補完")
         toggle("全画面のときだけ","fullscreen",Settings.FULLSCREEN_DEFAULT)
         button("時計・電池の色") {
             choice("時計・電池の色",arrayOf("白（標準）","薄い灰色","濃い灰色"),settings.number("color",0)) { settings.set("color",it) }
@@ -135,14 +135,15 @@ class MainActivity: Activity() {
         switchRow("ナビゲーションバー着色",settings.navbarEnabled(),heading=true) {
             settings.set("navbar_enabled",it)
             unified.isEnabled=it;recents.isEnabled=it
+            if(it)requestUsageAccess()
         }
         unified=toggle("上部バーにも同じ色を適用","navbar_unified").apply { isEnabled=settings.navbarEnabled() }
         recents=toggle("Recentsでは着色しない","navbar_recents_off").apply { isEnabled=settings.navbarEnabled() }
-        content.addView(text("Recents停止をONにすると一部端末ではHomeも無着色。判定不能時は着色を維持します。"))
         content.addView(text("固定色優先、それ以外は自動推定。明るい色ではボタンの視認性に注意。"))
         button(if(OverlayService.usageAllowed(this))"使用状況へのアクセス：許可済み" else "使用状況へのアクセス：未許可") {
             startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS))
         }
+        if(!OverlayService.usageAllowed(this))content.addView(text("使用状況アクセス未許可：アプリ別設定は編集・保存できますが、適用されません。"))
         lateinit var radius: Pair<TextView,SeekBar>
         val partial=text(when(settings.defaultMask()) {
             1->"以前の設定：上の角丸のみ有効"
@@ -150,7 +151,7 @@ class MainActivity: Activity() {
             else->""
         })
         // A legacy one-sided mask counts as enabled until the user explicitly toggles it.
-        switchRow("ラウンドコーナー",settings.defaultMask()!=0,heading=true) {
+        switchRow("スクリーンの角丸",settings.defaultMask()!=0,heading=true) {
             settings.setCornersEnabled(it)
             radius.first.isEnabled=it;radius.second.isEnabled=it
             partial.visibility=View.GONE
@@ -160,16 +161,32 @@ class MainActivity: Activity() {
         radius=slider("角丸半径","radius",0,64,18)
         radius.first.isEnabled=settings.defaultMask()!=0;radius.second.isEnabled=settings.defaultMask()!=0
         section("詳細設定")
-        button("アプリ別設定") { chooseApp() }
+        button("アプリ別設定") { requestUsageAccess { chooseApp() } }
         button("マニュアルと診断") { showDetails() }
     }
+    private var usageDialog: AlertDialog?=null
+    // Both entry points explain the same optional permission; saving never grants it.
+    private fun requestUsageAccess(onLater: (() -> Unit)?=null) {
+        if(OverlayService.usageAllowed(this)) { onLater?.invoke();return }
+        if(usageDialog?.isShowing==true)return
+        usageDialog=AlertDialog.Builder(this)
+            .setTitle("使用状況へのアクセス")
+            .setMessage("前面のアプリを判定し、ナビゲーションバーの着色やアプリ別設定を適用するために使用します。「許可する」でOSの設定画面を開き、Overlay Appsを許可してください。スイッチをONにするだけでは許可されません。未許可でも編集・保存できますが、アプリ別設定は適用されません。")
+            .setPositiveButton("許可する") { _,_->startActivity(Intent(SystemSettings.ACTION_USAGE_ACCESS_SETTINGS)) }
+            .setNegativeButton("後で") { _,_->onLater?.invoke() }
+            .create().also { dialog->
+                dialog.setOnDismissListener { usageDialog=null }
+                dialog.show()
+            }
+    }
+    override fun onDestroy() { usageDialog?.dismiss();super.onDestroy() }
     internal fun refreshForTest()=showSettings()
     private fun showDetails() {
         val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(24,12,24,12) }
         box.addView(text("使い方",18f))
         box.addView(text("オーバーレイの開始には重ねて表示の許可が必要です。停止中も設定は編集できます。時計と電池は配置で「なし」を選ぶと非表示になり、サイズや位置は保存されます。「自動判定」は全画面のときだけの設定に従います。アプリ別の「常に表示」「表示しない」は全画面設定にかかわらず適用し、全体の配置で「なし」にしたものは表示しません。アプリ別設定の適用には使用状況へのアクセスが必要です。"))
-        box.addView(text("ナビゲーションバーとラウンドコーナー",18f))
-        box.addView(text("着色はアプリ別固定色を優先し、未指定ならテーマやアイコンから推定します。「なし」は着色しません。Recents停止は端末によりHomeも対象になります。明るい固定色ではOSのナビボタンが読みにくい場合があります。角丸は全体の上下設定を優先します。"))
+        box.addView(text("ナビゲーションバーとスクリーンの角丸",18f))
+        box.addView(text("着色はアプリ別固定色を優先し、未指定ならテーマやアイコンから推定します。「なし」は着色しません。Recents停止をONにすると一部端末ではHomeも無着色になります。判定不能時は着色を維持します。明るい固定色ではOSのナビボタンが読みにくい場合があります。角丸は全体の上下設定を優先します。"))
         box.addView(text("上下同色と互換方式",18f))
         box.addView(text("上下同色はOverlayが決めた同じ候補色を別々の窓へ渡します。OS本来のバー色を変更する機能ではなく、SystemUIの前後関係や端末制限で上側が見えない場合があります。診断のready／描画回数は画面上の可視性を証明しません。Android 6/7では互換方式の手動切替は無効です。Android 8以降は標準方式が拒否された場合に自動フォールバックします。"))
         box.addView(text("困ったとき",18f))
@@ -263,8 +280,8 @@ class MainActivity: Activity() {
                 }
             }.setNegativeButton("戻る",null).show()
         }
-        row("ラウンドコーナー："+Policy.cornerLabels[settings.rule(pkg)]+if(settings.defaultMask()==0)"（上下OFFで未適用）" else "") {
-            edit("ラウンドコーナー",Policy.cornerLabels.toTypedArray(),settings.rule(pkg)) { settings.setRule(pkg,it) }
+        row("スクリーンの角丸："+Policy.cornerLabels[settings.rule(pkg)]+if(settings.defaultMask()==0)"（上下OFFで未適用）" else "") {
+            edit("スクリーンの角丸",Policy.cornerLabels.toTypedArray(),settings.rule(pkg)) { settings.setRule(pkg,it) }
         }
         dialog.show()
     }

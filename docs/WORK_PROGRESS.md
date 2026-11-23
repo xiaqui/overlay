@@ -1,3 +1,11 @@
+# Overlay Apps v1.0.0 正式版準備（2026-11-23 JST）
+
+[PR #43](https://github.com/xiaqui/overlay/pull/43) で最新TASK先頭の5項目を実装。単体テスト・lint・build、API23/24/26/28/29計107件のCIと固定鍵署名の検収APK作成・再取得照合まで完了。API26の初回画素判定1件失敗と同一head再試験成功は区別して記録。独立レビュー、実機・既存版からの更新、merge承認、正式Release/AppDate取得は未完了。角丸配置の保留案は実装していない。
+
+branch、code/test head、APK source/hash、試験範囲と残工程は [V1_PREPARATION_JA.md](V1_PREPARATION_JA.md) を正本とする。以下は過去の完了記録。
+
+---
+
 # Z3TC上下バー同色診断・設定メニュー再整理（2026-11-11 JST）
 
 | 項目 | 結果 |

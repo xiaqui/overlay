@@ -3,7 +3,7 @@ name: Build latest signed APK artifact
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [work/overlay-apps-v1-preparation-20261123]
     paths:
       - '.github/workflows/build-latest-signed-artifact.yml'
 
@@ -12,9 +12,10 @@ permissions:
 
 jobs:
   build:
-    # One-shot signed build for the explicit PR26 responsiveness restore merge.
-    # Other pushes remain inert; workflow_dispatch is still available.
-    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'overlay-smooth-artifact-report-20261113') }}
+    # Explicit preview build only; ordinary pushes never sign or publish.
+    # The one-shot marker selects this task's review APK without a Release.
+    # Limit this v1 preparation to main or the named implementation branch.
+    if: ${{ (github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/work/overlay-apps-v1-preparation-20261123')) || (github.event_name == 'push' && github.ref == 'refs/heads/work/overlay-apps-v1-preparation-20261123' && contains(github.event.head_commit.message, '[build-overlay-v1-preview]')) }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -56,26 +57,26 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p delivery
-          cp app/build/outputs/apk/release/app-release.apk delivery/Overlay.apk
+          cp app/build/outputs/apk/release/app-release.apk delivery/OverlayApps-v1.0.0-preview.apk
           TOOLS="$ANDROID_HOME/build-tools/35.0.0"
-          "$TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 23 delivery/Overlay.apk > delivery/SIGNATURE.txt
+          "$TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 23 delivery/OverlayApps-v1.0.0-preview.apk > delivery/SIGNATURE.txt
           EXPECTED=$(keytool -exportcert -keystore "$ANDROID_KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" | sha256sum | cut -d' ' -f1)
           grep -qi "certificate SHA-256 digest: $EXPECTED" delivery/SIGNATURE.txt
-          "$TOOLS/aapt" dump badging delivery/Overlay.apk > delivery/PACKAGE.txt
+          "$TOOLS/aapt" dump badging delivery/OverlayApps-v1.0.0-preview.apk > delivery/PACKAGE.txt
           grep -q "package: name='com.xiaqui.overlay'" delivery/PACKAGE.txt
-          grep -q "versionCode='10'" delivery/PACKAGE.txt
-          grep -q "versionName='0.10.0-smooth-settings'" delivery/PACKAGE.txt
+          grep -q "versionCode='12'" delivery/PACKAGE.txt
+          grep -q "versionName='1.0.0'" delivery/PACKAGE.txt
           grep -q "sdkVersion:'23'" delivery/PACKAGE.txt
           grep -q "targetSdkVersion:'25'" delivery/PACKAGE.txt
           if grep -q 'application-debuggable' delivery/PACKAGE.txt; then exit 1; fi
-          if "$TOOLS/aapt" dump permissions delivery/Overlay.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
+          if "$TOOLS/aapt" dump permissions delivery/OverlayApps-v1.0.0-preview.apk | grep -q 'android.permission.INTERNET'; then exit 1; fi
           mkdir -p "$RUNNER_TEMP/baseline"
           gh release download overlay-0.2.0-2f942bba --pattern Overlay.apk --dir "$RUNNER_TEMP/baseline"
           echo "a5fbf73e08e5e985a6b11c12fc81078d7f52f134cd3633b93c9a3892b472fe1b  $RUNNER_TEMP/baseline/Overlay.apk" | sha256sum -c -
           "$TOOLS/apksigner" verify --print-certs --min-sdk-version 23 "$RUNNER_TEMP/baseline/Overlay.apk" > "$RUNNER_TEMP/baseline-signature.txt"
           BASELINE=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/baseline-signature.txt")
           test "$EXPECTED" = "$BASELINE"
-          sha256sum delivery/Overlay.apk > delivery/SHA256SUMS
+          sha256sum delivery/OverlayApps-v1.0.0-preview.apk > delivery/SHA256SUMS
           printf 'source_sha=%s\nrun_id=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > delivery/PROVENANCE.txt
       - uses: actions/upload-artifact@v4
         with:
