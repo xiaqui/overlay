@@ -1,3 +1,17 @@
+# 2026-11-24 正式公開への追加確認
+
+- ユーザーが署名済みv1.0.0検収APKの実機合格を報告し、独立レビュー後のmergeと正式Releaseを承認。具体的な端末・操作別の新規明細は提示されていないため、全端末全条件の合格へ拡張しない。
+- 別担当がPR #43 head `98b614e1d1d77126737c82e3e7137c2aaaa1761f` の要求適合・許可誘導・互換性・workflowを独立レビュー。具体的なP0/P1/P2なし。追加の昇格workflowとscriptも重点レビューし指摘なし。静的レビューであり、本人による実機・SDK実行とは区別。
+- 検収済みsource `9418f6c` とhead98b614eのアプリ本体・build設定・署名workflowは同一。固定証明書・既知APK hashを維持したまま、ファイル名を正式用 `OverlayApps-v1.0.0.apk` にして同じbytesを昇格する。署名鍵の持出しや再ビルドは行わない。
+- 最新既存headの[run 45185517843](https://github.com/xiaqui/overlay/actions/runs/45185517843)はAPI29 Issue4Testの「returning app restores its always-display rule」で失敗（前面がcom.android.settings）。他4OS・checkは成功。元の成功run45183451587と区別し、新しい最終headのCIを確認してからmergeする。既存試験が未変更であることだけで原因を断定しない。
+- 既存Release jobを昇格専用に変更。mainの明示マーカー `[publish-overlay-v1.0.0]` とcheck/emulator全成功をgateに、元run/source/Artifactのdigest・APK hash/size・証明書/v1/v2署名・manifest・build入力一致を検証し、draftから再取得した同一バイトを確認してstable/latest公開。通常push・PRでは公開しない。秘密鍵を復元せず、既存Release/Assetを変更しない。
+- ローカル検証: bash -n、workflow YAML/権限/gate点検、模擬外部コマンドによる成功時のcreate→upload→download→edit順序と、既存Release・壊れたZIP・source不一致・対象外refの公開前停止を確認。模擬試験を実署名検証や実Release成功とは扱わない。
+- AppDate（xiaqui/appdate / Release Store）の最新READMEから、draftを除外・正式版設定ではprerelease除外・公開APK Asset対象という取得条件を確認。公開後にAPIと匿名APK取得を照合する予定。AndroidのAppDate実機UI操作は未確認。
+
+以下は2026-11-23時点の検収版作成記録。未実施表記は当時の状態で、上記2026-11-24の更新を優先する。
+
+---
+
 # Overlay Apps v1.0.0 準備・検証（2026-11-23 JST）
 
 ## 起点と所属

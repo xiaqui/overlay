@@ -89,14 +89,17 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: bash .github/scripts/emulator-test.sh
   release:
-    # Explicit one-time publication on the approved squash merge; never on ordinary pushes.
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-overlay-v0.11.0]') }}
+    # Explicit accepted-binary promotion on the approved merge; never ordinary pushes or PRs.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-overlay-v1.0.0]') }}
     needs: [check, emulator]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -105,75 +108,9 @@ jobs:
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
-      - name: Install exact SDK tools
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-      - name: Restore signing material
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_BASE64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
-          umask 077
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/overlay.jks"
-          keytool -list -keystore "$RUNNER_TEMP/overlay.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > /dev/null
-      - name: Build signed APK
-        env:
-          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/overlay.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle assembleRelease --no-daemon
-      - name: Verify and publish immutable release
+      - name: Install verification tools (no APK rebuild)
+        run: sdkmanager 'build-tools;35.0.0'
+      - name: Promote device-accepted signed APK to stable Release
         env:
           GH_TOKEN: ${{ github.token }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          set -euo pipefail
-          name="Overlay-v0.11.0-settings-hierarchy.apk"
-          tag="overlay-v0.11.0-settings-hierarchy"
-          mkdir -p delivery "$RUNNER_TEMP/baseline"
-          cp app/build/outputs/apk/release/app-release.apk "delivery/$name"
-          tools="$ANDROID_HOME/build-tools/35.0.0"
-          "$tools/apksigner" verify --verbose --print-certs "delivery/$name" > delivery/APK-VERIFICATION.txt
-          "$tools/aapt" dump badging "delivery/$name" > "$RUNNER_TEMP/badging.txt"
-          grep -q "package: name='com.xiaqui.overlay'" "$RUNNER_TEMP/badging.txt"
-          grep -q "versionCode='11'" "$RUNNER_TEMP/badging.txt"
-          grep -q "versionName='0.11.0-settings-hierarchy'" "$RUNNER_TEMP/badging.txt"
-          grep -q "sdkVersion:'23'" "$RUNNER_TEMP/badging.txt"
-          grep -q "targetSdkVersion:'25'" "$RUNNER_TEMP/badging.txt"
-          if grep -q 'application-debuggable' "$RUNNER_TEMP/badging.txt"; then exit 1; fi
-          if "$tools/aapt" dump permissions "delivery/$name" | grep -q 'android.permission.INTERNET'; then exit 1; fi
-          keytool -exportcert -keystore "$RUNNER_TEMP/overlay.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > "$RUNNER_TEMP/cert.der"
-          expected=$(sha256sum "$RUNNER_TEMP/cert.der" | cut -d ' ' -f1)
-          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' delivery/APK-VERIFICATION.txt)
-          test "$expected" = "$actual"
-          gh release download overlay-0.2.0-2f942bba --pattern Overlay.apk --dir "$RUNNER_TEMP/baseline"
-          echo "a5fbf73e08e5e985a6b11c12fc81078d7f52f134cd3633b93c9a3892b472fe1b  $RUNNER_TEMP/baseline/Overlay.apk" | sha256sum -c -
-          "$tools/apksigner" verify --print-certs "$RUNNER_TEMP/baseline/Overlay.apk" > "$RUNNER_TEMP/baseline-cert.txt"
-          baseline=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/baseline-cert.txt")
-          test "$actual" = "$baseline"
-          printf '%s\n' "$GITHUB_SHA" > delivery/SOURCE_SHA.txt
-          (cd delivery && sha256sum "$name" > SHA256SUMS)
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release tag already exists; refusing to overwrite assets." >&2
-            exit 1
-          fi
-          gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Overlay v0.11.0 Settings Hierarchy" --notes "Settings hierarchy, per-app upper-info three-way visibility, safe migration. Source: $GITHUB_SHA. Android 6-10 CI passed; Xperia device acceptance pending."
-          gh release upload "$tag" "delivery/$name" delivery/SHA256SUMS delivery/SOURCE_SHA.txt delivery/APK-VERIFICATION.txt
-          mkdir "$RUNNER_TEMP/retrieved"
-          gh release download "$tag" --pattern "$name" --dir "$RUNNER_TEMP/retrieved"
-          cmp "delivery/$name" "$RUNNER_TEMP/retrieved/$name"
-          (cd "$RUNNER_TEMP/retrieved" && sha256sum -c "$GITHUB_WORKSPACE/delivery/SHA256SUMS")
-          "$tools/apksigner" verify "$RUNNER_TEMP/retrieved/$name"
-          gh release edit "$tag" --draft=false --prerelease
-          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
-      - name: Remove signing material
-        if: always()
-        run: rm -f "$RUNNER_TEMP/overlay.jks" "$RUNNER_TEMP/cert.der"
+        run: bash .github/scripts/promote-accepted-v1.sh
