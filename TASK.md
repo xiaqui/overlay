@@ -79,3 +79,13 @@
 - テスト・CI・独立レビュー・P0/P1/P2対応、実装/merge/署名APK配送まで完了した。ただし今回の自動検証をZ3TC実機合格扱いしない。
 - 対象外: エッジジェスチャー、拡大鏡、Android 11以降、追加権限、常駐poll増設、設定保存形式の全面変更。
 
+## セキュリティ調査対応TODO（2026-11-23、未着手）
+
+社長が共有した横断セキュリティ調査の対応候補を記録する。既存のOverlay機能・過去の完成作業を再実装せず、**新規の実装発注ではない**。着手前に最新のsecurity調査証跡・workflow・GitHub設定を再確認する。秘密情報の実際の流出や設定不備を本TODOだけで断定しない。
+
+- [ ] **高優先：mainおよび署名対象branchの保護**。xiaqui/ipmsg・overlay・appdate・market-weatherの共通課題。Overlay自身のmainと署名workflowが実際に読み込むbranchを調べ、review・必須status check・force push/branch削除禁止・署名workflow編集への承認をrulesets/branch protectionで実現する。対象branchがmainと同じなら重複不要。GitHubのプラン・権限・既存Actionsの自動運用を確認し、設定変更後のPR/自動ビルド動作を検証する。**settings操作と結果確認は別工程**。
+- [ ] **高優先：署名workflowの実行範囲限定**。push / PR / workflow_dispatch / workflow_call / workflow_run等、信頼されないイベントや任意branchで固定署名用Secretsを使用できないか棚卸し。検証専用CIと署名・配布jobを分け、承認済みの保護branchまたは明示的に許可したrefに限定し、必要最小限のpermissions・environment保護/承認を設定する。PRの未信頼コードへ署名材を渡さない。既存の署名証明書とAndroid 6対応・Release配送・versionCode上昇を維持する。
+- [ ] **検収**：PRから鍵・署名配布jobに進めないこと、保護mainへの承認済み操作でのみ従来どおり署名できること、APK署名/manifest/hash/source SHAが一致することを確認。既存のユーザー配布物・リンク・署名鍵・Drive/Releaseを勝手に変更しない。
+
+**状態：TODO登録のみ。** 旧TASK完了記録や現在の検収結果を上書きしない。
+
