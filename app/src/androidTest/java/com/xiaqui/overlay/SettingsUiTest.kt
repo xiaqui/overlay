@@ -149,8 +149,10 @@ class SettingsUiTest {
             }
             click("後で")
             assertTrue(s.navbarEnabled());assertFalse(OverlayService.usageAllowed(ctx))
+            // Model a saved app override so the fixture stays at the top of a small screen.
+            s.setNavbarNone(ctx.packageName)
             mainButton("アプリ別設定");click("後で")
-            click("Overlay Apps")
+            click("設定済み： Overlay Apps")
             waitFor("unapplied notice") { nodes().any { it.text?.toString()?.startsWith("使用状況アクセス未許可：")==true } }
             click("スクリーンの角丸：",prefix=true);click("上だけ内側")
             assertEquals("editing and saving is possible without usage access",Policy.TOP_INSIDE,s.rule(ctx.packageName))
