@@ -163,7 +163,7 @@ class SettingsUiTest {
             inst.waitForIdleSync();assertPermissionLabel("使用状況へのアクセス：許可済み")
             assertTrue(OverlayService.usageAllowed(ctx))
             mainButton("アプリ別設定")
-            waitFor("allowed access opens picker directly") { nodes().any { it.text?.toString()=="Overlay Apps" } }
+            waitFor("allowed access opens picker directly") { nodes().any { it.text?.toString()?.endsWith("Overlay Apps")==true } }
             assertFalse(nodes().any { it.text?.toString()=="許可する" })
             click("戻る")
             mainButton("使用状況へのアクセス：許可済み")
