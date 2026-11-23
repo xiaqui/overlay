@@ -1,13 +1,27 @@
-# 現行作業：Overlay Apps v1.0.0 正式版公開（2026-11-24、最終CI確認中）
+# 完了：Overlay Apps v1.0.0 正式Release（2026-11-24）
 
-2026-11-24のユーザー指示で署名済み検収APKは実機検収合格。PR #43の独立レビュー、必要修正、最終headのCI確認後のmain merge、固定xiaqui署名鍵による正式v1.0.0公開まで承認済み。承認待ちを再作成しない。角丸の新仕様は引き続き保留。
+2026-11-24のユーザー実機検収合格・merge/正式公開承認に基づき、PR #43の独立レビュー、P2修正、最終CI、main merge、固定xiaqui署名鍵の検収済みAPK昇格を完了。新しい実装指示はない。角丸の共通配置・アプリ別上書きの新仕様は引き続き保留し、後続セキュリティTODO等を自動着手しない。
 
-別担当がhead `98b614e` と追加のRelease昇格処理を独立レビュー。その後のCIでP2の既存回転試験の同期不備を確認し、同じ測定条件の上限付き待機へ修正。アプリ本体の変更なし。検収済みAPKはsource `9418f6c492a380b655bc188d74956dbac1ef31e8`、SHA256 `dbf7f614da5dea30bd778a749f148b8ee99b20251fe36c6dcab1966b815dcf19`。アプリ本体・build入力が一致するため再ビルドせず、既存Release jobで同一APKを昇格する。詳細は docs/V1_PREPARATION_JA.md。
+## 完了結果
 
-既存head `98b614e` のrun 45185517843にはAPI29の前面復帰試験失敗がある。追加のhead552cbc6/run45223968791ではAPI23/29のナビ測定待機不足を確認したため、試験同期を修正。過去の成功だけで最終head成功とは扱わず、追加の昇格処理を含めた最終CIを確認してからmergeする。公開はmainへの明示マーカー `[publish-overlay-v1.0.0]` に限定し、checkと全emulator成功後にdraft添付・再取得照合して正式公開する。AppDate実機での取得は未確認として報告する。
+- PR: https://github.com/xiaqui/overlay/pull/43 （merged）。最終レビューhead `7230ea82f20c05ef0b2e5bfde3e71ddc456b8a4c`。
+- 独立レビュー: 別担当が機能差分・互換性・署名workflow・昇格処理を検査。P2の回転試験同期不備を、元のナビ測定条件を維持する12秒上限付き待機へ修正。後続の座標・実画素検証を維持し、最終headの未解決P0/P1/P2指摘なし。アプリ本体は変更していない。
+- PR最終CI: https://github.com/xiaqui/overlay/actions/runs/45225379315 — success。
+- merge/tag対象SHA: `2127b681e720642e01a19399e5589586900c2947`。
+- main CI・正式昇格: https://github.com/xiaqui/overlay/actions/runs/45226831750 — success。PR/mainとも単体テスト・lint・build、API23/26/28/29各24件＋API24限定suite11件、計107件成功。API24の限定範囲と既存API23画面OFF/ON対象外は従来どおり。
+- Release: https://github.com/xiaqui/overlay/releases/tag/overlay-v1.0.0 。draft=false、prerelease=false、latest。新規正式Releaseはこの1件のみで、既存Release/Assetを変更していない。
+- APK: `OverlayApps-v1.0.0.apk` / `com.xiaqui.overlay` / versionName `1.0.0` / versionCode `12` / minSdk23 / targetSdk25 / 691553 bytes / 非debuggable / INTERNET権限なし。
+- APK SHA-256: `dbf7f614da5dea30bd778a749f148b8ee99b20251fe36c6dcab1966b815dcf19`。
+- 固定署名証明書SHA-256: `dcfd2c8122274ec4148473c96b1853989c8d22e58e445d6ec4889ad5b34dffb2`。v1/v2署名と既存証明書一致を再検証。
+- APK元source: `9418f6c492a380b655bc188d74956dbac1ef31e8` / signing run45182762592 / Artifact14821503345。検収済みAPKとmainのアプリ本体・build入力が一致することを検査し、再ビルドせず同一bytesを昇格。merge/tag SHAとAPK元sourceは区別し、ReleaseのSOURCE_SHA/PROVENANCEに保存。
+- 再取得: Actionsでdraft添付後のcmp・hash・署名照合成功。公開後の匿名Release latest APIと匿名APK取得はHTTP200、691553 bytes・上記SHA・検収APKとのbyte一致を確認。
+- AppDate（Release Store）: 最新mainのREADMEにある正式版選択条件（公開済み・非draft・非prerelease・uploaded APKあり）を満たし、取得経路を確認。AppDate実機UIでの一覧更新・取得・インストール操作は未確認。検収済み版と正式版は同じversionCode12。
+- 実機: v1.0.0署名済み検収APKの合格はユーザー報告。端末・個別操作の新規明細は未提示のため、全端末全条件の保証へ拡張しない。Ace IIIはAndroid14で、全機能保証とは扱わない。
+- 過去CIの画素判定・前面復帰失敗の記録は保持。旧head98b614eの前面復帰失敗原因は未確定であり、今回のP2ナビ測定待機修正で解決したとは扱わない。最終PR/main CIは成功。
 
+以下は完了した実装仕様と過去記録。作成・独立レビュー・昇格の経緯は docs/V1_PREPARATION_JA.md とPR #43を参照。
 
-## v1.0.0で実装すること
+## v1.0.0で実装したこと（完了記録）
 
 1. **使用状況アクセスの許可誘導を共通化**。未許可で「ナビゲーションバー着色」をONにしたとき、または「アプリ別設定」を開こうとしたとき、理由を説明するダイアログで「許可する／後で」を選べるようにする。「許可する」でOSの使用状況アクセス設定画面へ移動し、復帰時に許可状態を再判定・表示更新。許可済みなら促さない。「後で」でもアプリ別設定の編集・保存は従来どおり可能で、未許可時は未適用と明示。既存の権限ボタンも保持し、許可を強制しない。ナビバーON操作だけで権限が付与されたと誤認させない。
 2. **表示名**を「Overlay Apps」に統一。旧「Overlay 表示仕上げ版」等の接尾辞を除去。applicationId・署名鍵・既存設定データは変更しない。
