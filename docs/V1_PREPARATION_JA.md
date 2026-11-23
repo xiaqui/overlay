@@ -5,6 +5,7 @@
 - 検収済みsource `9418f6c` とhead98b614eのアプリ本体・build設定・署名workflowは同一。固定証明書・既知APK hashを維持したまま、ファイル名を正式用 `OverlayApps-v1.0.0.apk` にして同じbytesを昇格する。署名鍵の持出しや再ビルドは行わない。
 - 最新既存headの[run 45185517843](https://github.com/xiaqui/overlay/actions/runs/45185517843)はAPI29 Issue4Testの「returning app restores its always-display rule」で失敗（前面がcom.android.settings）。他4OS・checkは成功。元の成功run45183451587と区別し、新しい最終headのCIを確認してからmergeする。既存試験が未変更であることだけで原因を断定しない。
 - 既存Release jobを昇格専用に変更。mainの明示マーカー `[publish-overlay-v1.0.0]` とcheck/emulator全成功をgateに、元run/source/Artifactのdigest・APK hash/size・証明書/v1/v2署名・manifest・build入力一致を検証し、draftから再取得した同一バイトを確認してstable/latest公開。通常push・PRでは公開しない。秘密鍵を復元せず、既存Release/Assetを変更しない。
+- 最終候補head552cbc6のrun45223968791はAPI23/29で同じ既存Issue4Testの「landscape nav measured」が失敗、他3OSとcheckは成功。独立レビューでP2の試験同期不備を確認。直前のbars(normal,false)はステータスバー復帰だけを待ち、ナビバー寸法の更新完了を保証していなかった。即時assertを既存12秒上限付きwaitFor（横画面・known・status高>0・nav合計>0・非表示状態）へ変更し、同じナビ測定条件と後続の座標・実画素検証を維持する。アプリ本体は変更しない。旧98b614eの前面復帰失敗は原因未確定の別の試験記録であり、この修正で解決したとは扱わない。
 - ローカル検証: bash -n、workflow YAML/権限/gate点検、模擬外部コマンドによる成功時のcreate→upload→download→edit順序と、既存Release・壊れたZIP・source不一致・対象外refの公開前停止を確認。模擬試験を実署名検証や実Release成功とは扱わない。
 - AppDate（xiaqui/appdate / Release Store）の最新READMEから、draftを除外・正式版設定ではprerelease除外・公開APK Asset対象という取得条件を確認。公開後にAPIと匿名APK取得を照合する予定。AndroidのAppDate実機UI操作は未確認。
 

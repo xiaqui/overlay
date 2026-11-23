@@ -2,9 +2,9 @@
 
 2026-11-24のユーザー指示で署名済み検収APKは実機検収合格。PR #43の独立レビュー、必要修正、最終headのCI確認後のmain merge、固定xiaqui署名鍵による正式v1.0.0公開まで承認済み。承認待ちを再作成しない。角丸の新仕様は引き続き保留。
 
-別担当がhead `98b614e` と追加のRelease昇格処理を独立レビューし、具体的なP0/P1/P2なし。検収済みAPKはsource `9418f6c492a380b655bc188d74956dbac1ef31e8`、SHA256 `dbf7f614da5dea30bd778a749f148b8ee99b20251fe36c6dcab1966b815dcf19`。アプリ本体・build入力が一致するため再ビルドせず、既存Release jobで同一APKを昇格する。詳細は docs/V1_PREPARATION_JA.md。
+別担当がhead `98b614e` と追加のRelease昇格処理を独立レビュー。その後のCIでP2の既存回転試験の同期不備を確認し、同じ測定条件の上限付き待機へ修正。アプリ本体の変更なし。検収済みAPKはsource `9418f6c492a380b655bc188d74956dbac1ef31e8`、SHA256 `dbf7f614da5dea30bd778a749f148b8ee99b20251fe36c6dcab1966b815dcf19`。アプリ本体・build入力が一致するため再ビルドせず、既存Release jobで同一APKを昇格する。詳細は docs/V1_PREPARATION_JA.md。
 
-最新の既存head `98b614e` のrun 45185517843にはAPI29の既存Issue4Test失敗がある。過去の成功だけで最終head成功とは扱わず、追加の昇格処理を含めた最終CIを確認してからmergeする。公開はmainへの明示マーカー `[publish-overlay-v1.0.0]` に限定し、checkと全emulator成功後にdraft添付・再取得照合して正式公開する。AppDate実機での取得は未確認として報告する。
+既存head `98b614e` のrun 45185517843にはAPI29の前面復帰試験失敗がある。追加のhead552cbc6/run45223968791ではAPI23/29のナビ測定待機不足を確認したため、試験同期を修正。過去の成功だけで最終head成功とは扱わず、追加の昇格処理を含めた最終CIを確認してからmergeする。公開はmainへの明示マーカー `[publish-overlay-v1.0.0]` に限定し、checkと全emulator成功後にdraft添付・再取得照合して正式公開する。AppDate実機での取得は未確認として報告する。
 
 
 ## v1.0.0で実装すること

@@ -143,7 +143,15 @@ class Issue4Test {
         waitFor("landscape observed") { ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE && OverlayService.runtime?.bars?.known==true }
         main { settings.set("fullscreen",true) }
         bars("immersive",true);bars("normal",false)
-        assertTrue("landscape nav measured",OverlayService.runtime!!.bars.let { it.bottom+it.left+it.right>0 })
+        // Status and navigation insets arrive separately after leaving immersive mode.
+        // bars(normal,false) proves status visibility, not that side nav has settled.
+        waitFor("landscape nav measured") {
+            ctx.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                OverlayService.runtime?.let {
+                    !it.visible && it.bars.known && it.bars.top>0 &&
+                        it.bars.bottom+it.bars.left+it.bars.right>0
+                }==true
+        }
         main { preview!!.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE }
         waitFor("reverse landscape bars and per-app placement settled") {
             OverlayService.runtime?.let {
