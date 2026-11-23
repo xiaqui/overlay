@@ -3,7 +3,7 @@ name: Build latest signed APK artifact
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [work/overlay-apps-v1-preparation-20261123]
     paths:
       - '.github/workflows/build-latest-signed-artifact.yml'
 
@@ -13,8 +13,9 @@ permissions:
 jobs:
   build:
     # Explicit preview build only; ordinary pushes never sign or publish.
+    # The one-shot marker selects this task's review APK without a Release.
     # Limit this v1 preparation to main or the named implementation branch.
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/work/overlay-apps-v1-preparation-20261123') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/work/overlay-apps-v1-preparation-20261123')) || (github.event_name == 'push' && github.ref == 'refs/heads/work/overlay-apps-v1-preparation-20261123' && contains(github.event.head_commit.message, '[build-overlay-v1-preview]')) }}
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
