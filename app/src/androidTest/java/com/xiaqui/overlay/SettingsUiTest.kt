@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.Switch
@@ -37,11 +38,16 @@ class SettingsUiTest {
         fun contains(prefix: String)=labels().any { it.startsWith(prefix) }
         fun rebuild() { inst.runOnMainSync { activity.refreshForTest() };inst.waitForIdleSync() }
         try {
-            val headings=listOf("オーバーレイ","ステータスバー補助","ナビゲーションバー着色","ラウンドコーナー","詳細設定")
+            val headings=listOf("オーバーレイ","ステータスバー情報補完","ナビゲーションバー着色","スクリーンの角丸","詳細設定")
             assertEquals(headings,labels().filter { it in headings }.distinct())
             assertFalse(contains("全体設定"));assertFalse(contains("上部情報"));assertFalse(contains("詳細／トラブル対応"))
             assertTrue(contains("重ねて表示："));assertTrue(contains("使用状況へのアクセス："))
             assertTrue(contains("確認テスト"));assertTrue(contains("マニュアルと診断"))
+            assertFalse(contains("Recents停止をON"))
+            inst.runOnMainSync {
+                val heading=views(activity.window.decorView).filterIsInstance<TextView>().single { it.text=="ステータスバー情報補完" }
+                assertEquals(Color.BLACK,heading.currentTextColor)
+            }
             assertTrue(contains("時計の配置：左"));assertTrue(contains("電池の配置：横型・端子左"))
             val statusLabels=labels()
             val colorIndex=statusLabels.indexOfFirst { it=="時計・電池の色" }
@@ -57,13 +63,13 @@ class SettingsUiTest {
             assertTrue(s.fullscreenOnly());assertFalse(s.prefs.contains("fullscreen"))
             assertTrue(contains("以前の設定：上の角丸のみ有効"));assertEquals(1,s.defaultMask())
             assertTrue(labels().indexOfFirst { it.startsWith("使用状況へのアクセス：") } in
-                (labels().indexOf("ナビゲーションバー着色")+1) until labels().indexOf("ラウンドコーナー"))
+                (labels().indexOf("ナビゲーションバー着色")+1) until labels().indexOf("スクリーンの角丸"))
             assertEquals(listOf("アプリ別設定","マニュアルと診断"),labels().drop(labels().indexOf("詳細設定")+1))
             fun switch(label: String)=views(activity.window.decorView).filterIsInstance<Switch>().single { it.text==label }
             val unified=switch("上部バーにも同じ色を適用")
             val recents=switch("Recentsでは着色しない")
             val fullscreen=switch("全画面のときだけ")
-            val corner=switch("ラウンドコーナー")
+            val corner=switch("スクリーンの角丸")
             val radius=views(activity.window.decorView).filterIsInstance<SeekBar>().last()
             assertTrue(fullscreen.isChecked && fullscreen.isEnabled);assertFalse(switch("オーバーレイ").isChecked)
             assertFalse(unified.isEnabled);assertFalse(recents.isEnabled)
@@ -102,6 +108,80 @@ class SettingsUiTest {
         } finally { inst.runOnMainSync { activity.finish() };s.prefs.edit().clear().commit() }
     }
 
+    @Test fun optionalUsagePermissionAllowsEditingAndRefreshesAfterOsSettings() {
+        val inst=InstrumentationRegistry.getInstrumentation();val ctx=inst.targetContext
+        val prefs=ctx.getSharedPreferences("overlay",0)
+        fun shell(command: String)=ParcelFileDescriptor.AutoCloseInputStream(inst.uiAutomation.executeShellCommand(command))
+            .bufferedReader().use { it.readText() }
+        fun nodes(): List<AccessibilityNodeInfo> {
+            fun descendants(node: AccessibilityNodeInfo): List<AccessibilityNodeInfo> =
+                listOf(node)+(0 until node.childCount).flatMap { i->node.getChild(i)?.let { descendants(it) } ?: emptyList() }
+            return inst.uiAutomation.rootInActiveWindow?.let { descendants(it) } ?: emptyList()
+        }
+        fun waitFor(message: String,predicate: ()->Boolean) {
+            val end=SystemClock.elapsedRealtime()+8000
+            while(!predicate() && SystemClock.elapsedRealtime()<end)SystemClock.sleep(100)
+            assertTrue(message,predicate())
+        }
+        fun click(label: String,prefix: Boolean=false) {
+            waitFor("dialog item $label") { nodes().any { if(prefix)it.text?.toString()?.startsWith(label)==true else it.text?.toString()==label } }
+            var node=nodes().first { if(prefix)it.text?.toString()?.startsWith(label)==true else it.text?.toString()==label }
+            while(!node.isClickable && node.parent!=null)node=node.parent
+            assertTrue("click $label",node.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            inst.waitForIdleSync()
+        }
+        prefs.edit().clear().commit()
+        shell("appops set ${ctx.packageName} GET_USAGE_STATS deny")
+        val activity=inst.startActivitySync(Intent(ctx,MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+        val s=Settings(ctx)
+        fun mainButton(label: String) { inst.runOnMainSync {
+            views(activity.window.decorView).filterIsInstance<android.widget.Button>().single { it.text==label }.performClick()
+        };inst.waitForIdleSync() }
+        fun assertPermissionLabel(label: String) { inst.runOnMainSync {
+            assertTrue(views(activity.window.decorView).filterIsInstance<TextView>().any { it.text==label })
+        } }
+        try {
+            assertFalse(OverlayService.usageAllowed(ctx))
+            assertEquals("Overlay Apps",ctx.packageManager.getApplicationLabel(ctx.applicationInfo).toString())
+            inst.runOnMainSync {
+                views(activity.window.decorView).filterIsInstance<Switch>().single { it.text=="ナビゲーションバー着色" }.isChecked=true
+            }
+            click("後で")
+            assertTrue(s.navbarEnabled());assertFalse(OverlayService.usageAllowed(ctx))
+            mainButton("アプリ別設定");click("後で")
+            click("Overlay Apps")
+            waitFor("unapplied notice") { nodes().any { it.text?.toString()?.startsWith("使用状況アクセス未許可：")==true } }
+            click("スクリーンの角丸：",prefix=true);click("上だけ内側")
+            assertEquals("editing and saving is possible without usage access",Policy.TOP_INSIDE,s.rule(ctx.packageName))
+            click("戻る");click("戻る")
+            mainButton("アプリ別設定");click("許可する")
+            waitFor("OS settings opened") { inst.uiAutomation.rootInActiveWindow?.packageName?.toString()=="com.android.settings" }
+            shell("appops set ${ctx.packageName} GET_USAGE_STATS allow")
+            shell("input keyevent KEYCODE_BACK")
+            waitFor("returned to app") { inst.uiAutomation.rootInActiveWindow?.packageName?.toString()==ctx.packageName }
+            inst.waitForIdleSync();assertPermissionLabel("使用状況へのアクセス：許可済み")
+            assertTrue(OverlayService.usageAllowed(ctx))
+            mainButton("アプリ別設定")
+            waitFor("allowed access opens picker directly") { nodes().any { it.text?.toString()=="Overlay Apps" } }
+            assertFalse(nodes().any { it.text?.toString()=="許可する" })
+            click("戻る")
+            mainButton("使用状況へのアクセス：許可済み")
+            waitFor("OS settings reopened") { inst.uiAutomation.rootInActiveWindow?.packageName?.toString()=="com.android.settings" }
+            shell("appops set ${ctx.packageName} GET_USAGE_STATS deny")
+            shell("input keyevent KEYCODE_BACK")
+            waitFor("returned after revoke") { inst.uiAutomation.rootInActiveWindow?.packageName?.toString()==ctx.packageName }
+            inst.waitForIdleSync();assertPermissionLabel("使用状況へのアクセス：未許可")
+            mainButton("アプリ別設定");click("後で")
+            assertEquals(Policy.TOP_INSIDE,s.rule(ctx.packageName))
+            click("戻る")
+        } finally {
+            inst.runOnMainSync { activity.finish() };inst.waitForIdleSync()
+            shell("appops set ${ctx.packageName} GET_USAGE_STATS default")
+            prefs.edit().clear().commit()
+        }
+    }
+
     @Test fun headingStartsStopsAndResumesWithoutResettingChildSettings() {
         val inst=InstrumentationRegistry.getInstrumentation()
         val ctx=inst.targetContext
@@ -120,7 +200,7 @@ class SettingsUiTest {
         try {
             val all=views(activity.window.decorView).filterIsInstance<Switch>()
             val master=all.single { it.text=="オーバーレイ" }
-            val corner=all.single { it.text=="ラウンドコーナー" }
+            val corner=all.single { it.text=="スクリーンの角丸" }
             inst.runOnMainSync { corner.isChecked=true;master.isChecked=true }
             waitFor("start applies settings edited while stopped") { OverlayService.runtime?.locations?.size==4 }
             inst.runOnMainSync { master.isChecked=false }
@@ -176,7 +256,7 @@ class SettingsUiTest {
                     if(activity!=null && activity.resources.configuration.orientation==target) {
                         val switches=views(activity.window.decorView).filterIsInstance<Switch>().associateBy { it.text.toString() }
                         assertFalse(switches.getValue("オーバーレイ").isChecked)
-                        assertTrue(switches.getValue("ラウンドコーナー").isChecked)
+                        assertTrue(switches.getValue("スクリーンの角丸").isChecked)
                         assertTrue(switches.getValue("上部バーにも同じ色を適用").isChecked)
                         assertFalse(switches.getValue("上部バーにも同じ色を適用").isEnabled)
                         verified=true

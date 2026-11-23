@@ -100,13 +100,13 @@ class OverlayService : Service() {
         screenOn=(getSystemService(POWER_SERVICE) as PowerManager).isInteractive
         if(Build.VERSION.SDK_INT>=26) {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
-                NotificationChannel("overlay","Overlayの常駐",NotificationManager.IMPORTANCE_LOW))
+                NotificationChannel("overlay","Overlay Appsの常駐",NotificationManager.IMPORTANCE_LOW))
         }
         val piFlags=PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),piFlags)
         val stop=PendingIntent.getService(this,1,Intent(this,OverlayService::class.java).setAction("stop"),piFlags)
         val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(this,"overlay") else Notification.Builder(this)
-        startForeground(1,builder.setSmallIcon(com.xiaqui.overlay.R.drawable.ic_overlay).setContentTitle("Overlay")
+        startForeground(1,builder.setSmallIcon(com.xiaqui.overlay.R.drawable.ic_overlay).setContentTitle("Overlay Apps")
             .setContentText("時計・電池・角丸を表示中").setContentIntent(open).setOngoing(true)
             .addAction(Notification.Action.Builder(null,"停止",stop).build()).build())
         settings.prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -139,7 +139,7 @@ class OverlayService : Service() {
         PixelFormat.TRANSLUCENT).apply {
         gravity=gravityValue
         if(Build.VERSION.SDK_INT>=28) layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        title="Overlay"
+        title="Overlay Apps"
     }
     private fun add(view: View,p: WindowManager.LayoutParams) {
         try { wm.addView(view,p) }
