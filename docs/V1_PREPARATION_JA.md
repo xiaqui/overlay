@@ -13,13 +13,15 @@
 2. アプリ・常駐通知の表示名をOverlay Appsへ統一。applicationIdと固定署名方式は維持。versionCode 12 / versionName 1.0.0。正式版の公開を意味しない。
 3. 「ステータスバー情報補完」「スクリーンの角丸」に表記統一。見出しは黒色に統一。
 4. Recents停止によるHome無着色と判定不能時の着色維持の説明をマニュアルに集約。
-5. Settings/Policy/角丸・時計・電池・バー描画の処理、保存形式、poll周期は変更しない。OverlayServiceの変更は表示用文字列のみ。
+5. 既存の手動署名Artifact workflowの旧v10固定検査をv12へ更新し、検収APK名をOverlayApps-v1.0.0-preview.apkに変更。実行は明示dispatchとmain／本実装branchに限定し、通常pushでは署名・公開しない。
+6. Settings/Policy/角丸・時計・電池・バー描画の処理、保存形式、poll周期は変更しない。OverlayServiceの変更は表示用文字列のみ。
 
 ## 検証の現在地
 
 - ローカル: git diff --check、変更範囲と保存キーの点検。Android SDK/Gradleは既設なし。DELIVERYの方針に従い新規SDK構築はせず、既存Actionsを利用する。
 - 自動試験: 既存UI見出し期待値を更新。追加の操作試験で両入口の「後で」、未許可時の角丸設定保存、OS使用状況アクセス画面遷移・復帰、許可済み入口、許可取消後の表示更新を検証予定。
 - CI: PR作成後にAPI23/24/26/28/29を確認する。API24は従来のBatteryFinishTest＋SettingsUiTest限定であり、全回帰とは区別する。
+- Gitコミット: 接続APIはauthor/committerの直接指定に非対応。作成後メタデータでnoreplyメールを確認したが、名前はアカウント表示名となり、共通規約のxiaquiへの統一は未達。既存履歴は書き換えない。
 - 独立レビュー: 未実施。自己点検を独立レビューと呼ばない。
 - APK署名・配送・実機・Release/AppDate取得: 未実施。過去版の実機合格を今回版へ転記しない。
 

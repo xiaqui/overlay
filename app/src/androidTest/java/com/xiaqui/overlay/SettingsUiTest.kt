@@ -126,7 +126,7 @@ class SettingsUiTest {
         fun click(label: String,prefix: Boolean=false) {
             waitFor("dialog item $label") { nodes().any { if(prefix)it.text?.toString()?.startsWith(label)==true else it.text?.toString()==label } }
             var node=nodes().first { if(prefix)it.text?.toString()?.startsWith(label)==true else it.text?.toString()==label }
-            while(!node.isClickable && node.parent!=null)node=node.parent
+            while(!node.isClickable)node=node.parent ?: break
             assertTrue("click $label",node.performAction(AccessibilityNodeInfo.ACTION_CLICK))
             inst.waitForIdleSync()
         }
